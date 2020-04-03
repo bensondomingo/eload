@@ -187,3 +187,8 @@ yarn-error.log
 # End of https://www.gitignore.io/api/vuejs,django,python,visualstudiocode
 
 .vscode/*
+
+migrations/
+migrations/*
+
+requirements.txt
