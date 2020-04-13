@@ -27,4 +27,5 @@ class Transactions(models.Model):
             self.transaction_date, get_current_timezone())
         transaction_date = transaction_date.strftime('%Y-%m-%d %I:%M %p')
 
-        return f'{self.id} - {transaction_date} - {self.transaction_type} - {self.sell_amount} - {self.buy_amount}'
+        return (f'{self.id} - {transaction_date} - {self.transaction_type} - '
+                f'{self.sell_amount if self.sell_amount else self.buy_amount}')
