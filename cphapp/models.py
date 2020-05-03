@@ -1,5 +1,4 @@
 from django.db import models
-from django.utils.dateparse import parse_datetime
 from django.utils.timezone import get_current_timezone
 
 from cphapp.utils import utc_to_local
@@ -21,6 +20,13 @@ class Transactions(models.Model):
     class Meta:
         verbose_name_plural = 'transactions'
         ordering = ('-transaction_date',)
+
+    @classmethod
+    def count(cls, transaction_type='all'):
+        assert transaction_type in ('sell', 'buy', 'all')
+        obj = cls.objects
+        return obj.count() if transaction_type == 'all' else obj.filter(
+            transaction_type=transaction_type).count()
 
     def __str__(self):
         transaction_date = utc_to_local(

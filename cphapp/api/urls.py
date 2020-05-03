@@ -1,9 +1,10 @@
 from django.urls import path
 
-from cphapp.api.views import TransactionsAPIView, TransactionsInitDBAPIView
+from cphapp.api.views import TransactionsListAPIView, TransactionsRetrieveUpdateAPIView
 
 urlpatterns = [
-    path('transactions/', TransactionsAPIView.as_view(), name='transactions-list'),
-    path('transactions-init/', TransactionsInitDBAPIView.as_view(),
-         name='transactions-initdb')
+    path('transactions/', TransactionsListAPIView.as_view(),
+         name='transactions-list'),
+    path('transactions/<str:pk>/', TransactionsRetrieveUpdateAPIView.as_view(),
+         name='transactions-detail')
 ]
