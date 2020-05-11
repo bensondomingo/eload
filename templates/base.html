@@ -1,0 +1,83 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% block title %}
+  {% endblock %}
+  <link rel="stylesheet" href="{% static 'assets/css/shared.css' %}">
+  <script src="{% static 'assets/scripts/shared.js' %}" defer></script>
+  {% block styles %}
+  {% endblock %}
+  {% block scripts %}
+  {% endblock %}
+</head>
+
+<body>
+  <div id="backdrop-main" class="backdrop invisible"></div>
+  <header class="header">
+    <div id="menu-button-container">
+      <img src="{% static 'assets/images/btn-menu.ico' %}" alt="" id="menu-show-btn">
+      <img src="{% static 'assets/images/arrow-left.ico' %}" alt="" id="menu-hide-btn" class="invisible">
+    </div>
+    <div class="logo-container">
+      <a class="logo" href="#">eLoad</a>
+    </div>
+    <nav id="main-nav">
+      <ul class="nav-items">
+        <li class="nav-item">
+          <a class="nav-item__link" href="#">Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-item__link" href="#">Sales</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-item__link" href="#">About</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-item__link" href="#">Login</a>
+        </li>
+      </ul>
+    </nav>
+  </header>
+
+  <aside class="sidebar invisible">
+    <div class="profile">
+      <div class="profile-img__container">
+        <img src="{% static 'assets/images/provile-avatar.jpg' %}" alt="" class="profile-img">
+      </div>
+      <div class="profile-info">
+        <h2 class="profile-name">Benson Vic Domingo</h2>
+        <p class="contact-number">+639051577637</p>
+      </div>
+    </div>
+    <nav id="mobile-nav">
+      <ul class="nav-items">
+        <li class="nav-item">
+          <a class="nav-item__link" href="#">Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-item__link" href="#">Sales</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-item__link" href="#">About</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-item__link" href="#">Login</a>
+        </li>
+      </ul>
+    </nav>
+  </aside>
+
+  <main>
+    {% block content %}
+    {% endblock %}
+  </main>
+  
+  <footer>&#169 eload.ph</footer>
+</body>
+
+</html>

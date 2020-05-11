@@ -1,0 +1,160 @@
+main {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 3.5rem 1rem;
+  overflow: scroll;
+}
+
+.sale-range-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* .sale-range-wrapper > * {
+  width: 100%;
+  min-width: 200px;
+  max-width: 350px;
+} */
+
+.select-head {
+  display: flex;
+  justify-content: space-between;
+  background: #0c2c52;
+  border-radius: 2rem;
+  color: white;
+  font-size: 1rem;
+  padding: 0.8rem 1.5rem;
+  width: 100%;
+}
+
+.select-expand {
+  border-radius: 1rem 1rem 0 0;
+}
+
+.select-head:hover {
+  cursor: pointer;
+}
+
+.dropdown-arrow {
+  /* font-size: 2rem; */
+  margin-left: 1rem;
+}
+
+.select-options {
+  background-color: #dcf0f7;
+  padding: 0.8rem;
+  list-style: none;
+  margin: 0 auto;
+  width: 100%;
+  border-radius: 0 0 1rem 1rem;
+  border: #0c2c52 solid 1.5px;
+}
+
+.select-options li {
+  padding: 0.2rem;
+  border-radius: 5px;
+  /* font-size: 0.8rem; */
+}
+
+.select-options li:hover,
+.select-options li:focus {
+  cursor: pointer;
+  color: white;
+  background-color: #0c2c52;
+}
+
+.custom-range-wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-top: 0.2rem;
+}
+
+.custom-range__datepickers {
+  margin-top: 0.2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.custom-range__datepicker {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  font: inherit;
+  font-size: 0.8rem;
+  border: none;
+  border-bottom: #0c2c52 solid 1.5px;
+  padding: 0.3rem;
+  background: transparent;
+  outline: none;
+  text-align: center;
+  width: 45%;
+}
+
+.custom-range__datepicker:focus,
+.custom-range__datepicker:hover {
+  border-bottom-width: 2px;
+}
+
+.custom-range__datepickers > p {
+  margin: 0;
+}
+
+.inline-btn-wrapper {
+  padding: 0.3rem 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.inline-btn {
+  width: 45%;
+  flex: 0 1 auto;
+}
+
+.sales-summary {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 1 auto;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0.8rem;
+  box-shadow: 3px 3px 4px grey;
+  flex: 1 1 auto;
+  min-height: 8rem;
+}
+
+.card:last-of-type {
+  margin-bottom: 0;
+}
+
+.card-component {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-weight: 900;
+}
+
+.card-title {
+  color: white;
+  background-color: #0c2c52;
+  flex: 1 1 30%;
+}
+
+.card-body {
+  background-color: #dcf0f7;
+  flex: 3 3 70%;
+  font-size: 2rem;
+}

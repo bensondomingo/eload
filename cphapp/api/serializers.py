@@ -9,6 +9,8 @@ TDELTA_MAX = 10 * 60
 
 
 class TransactionSerializer(serializers.ModelSerializer):
+    # transaction_date = serializers.DateTimeField(
+    #     input_formats=['%Y-%m-%d', '%Y-%m-%d'])
 
     class Meta:
         model = Transactions

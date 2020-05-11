@@ -8,8 +8,11 @@ from rest_framework import status
 from rest_framework import generics
 from rest_framework import mixins
 
+from django_filters import rest_framework as filters
+
 from cphapp.models import Transactions
 from cphapp.api.serializers import TransactionSerializer
+from cphapp.filters import TransactionsFilter
 
 from cph import coinsph
 from cphapp import utils
@@ -17,12 +20,15 @@ from cphapp import utils
 
 class TransactionsListAPIView(generics.ListAPIView):
 
-    serializer_class = TransactionSerializer
     queryset = Transactions.objects.all()
+    serializer_class = TransactionSerializer
+    filter_backends = [filters.DjangoFilterBackend]
+    filterset_class = TransactionsFilter
 
     def list(self, request, *args, **kwargs):
-        utils.sync_transactions_db(
-            model=Transactions, serializer=self.serializer_class)
+        if not request.query_params.get('offset'):
+            utils.sync_transactions_db(
+                model=Transactions, serializer=self.serializer_class)
         return super().list(request, *args, **kwargs)
 
 

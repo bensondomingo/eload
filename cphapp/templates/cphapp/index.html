@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}
+<title>eLoad | Home</title>
+{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="{% static 'cphapp/css/styles.css' %}">
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{% static 'cphapp/scripts/home.js' %}" defer></script>
+{% endblock %}
+
+{% block content %}
+  <section id="select-component" class="sale-range-wrapper">
+    <button class="select-head">
+      <div id="selected"></div>
+      <div class="dropdown-arrow-down">▾</div>
+    </button>
+    <ul class="select-options invisible"></ul>
+  </section>
+
+  <section id="custom-range-picker" class="custom-range-wrapper invisible">
+    <ul class="error-message-list invisible" id="custom-range-error"></ul>
+    <div class="custom-range__datepickers">
+      <input type="date" name="custom-date-start" id="custom-date-start" class="custom-range__datepicker">
+      <p>to</p>
+      <input type="date" name="custom-date-end" id="custom-date-end" class="custom-range__datepicker">
+    </div>
+    <div class="inline-btn-wrapper">
+      <button id="custom-range__clear" class="inline-btn action-btn-cancel">Clear</button>
+      <button id="custom-range__apply" class="inline-btn action-btn-main">Apply</button>
+    </div>
+  </section>
+
+  <section id="sales-summary" class="sales-summary"></section>
+{% endblock %}
