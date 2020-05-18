@@ -57,7 +57,7 @@ class Home {
       const dateRange = dateRangeThisWeek();
       const dateStart = dateRange.start.toLocaleDateString();
       const dateEnd = dateRange.end;
-      dateEnd.setDate(dateEnd.getDate() + 1)
+      dateEnd.setDate(dateEnd.getDate() + 1);
       const args = `transaction_date__gte=${dateStart}&transaction_date__lt=${dateEnd.toLocaleDateString()}`;
       Home.fetchTransactions(args);
     };
@@ -89,7 +89,7 @@ class Home {
       Home.transactions = [];
       const dateStart = dateRange.start.toLocaleDateString();
       const dateEnd = dateRange.end;
-      dateEnd.setDate(dateEnd.getDate() + 1)
+      dateEnd.setDate(dateEnd.getDate() + 1);
       const args = `transaction_date__gte=${dateStart}&transaction_date__lt=${dateEnd.toLocaleDateString()}`;
       Home.fetchTransactions(args);
     };
@@ -101,25 +101,38 @@ class Home {
     this.salesSummaryComponent.addSummary('TOP UPS', 0);
   }
 
-  static fetchTransactions(args) {
+  // static fetchTransactions(args) {
+  //   const endpoint = '/cphapp/api/transactions/' + '?' + args;
+  //   console.log(endpoint);
+  //   apiService(endpoint).then((data) => {
+  //     console.log(data);
+  //     this.transactions.push(...data.results);
+  //     if (data.next) {
+  //       this.fetchTransactions(data.next);
+  //     } else {
+  //       console.log(this.transactions);
+  //       Home.updateUI();
+  //     }
+  //   });
+  // }
+
+  static fetchTransactions = async function (args) {
     const endpoint = '/cphapp/api/transactions/' + '?' + args;
     console.log(endpoint);
-    apiService(endpoint).then((data) => {
-      console.log(data);
-      this.transactions.push(...data.results);
-      if (data.next) {
-        this.fetchTransactions(data.next);
-      } else {
-        console.log(this.transactions);
-        Home.updateUI();
-      }
-    });
-  }
+    let data = await apiService(endpoint);
+    this.transactions.push(...data.results);
+    if (data.next) {
+      this.fetchTransactions(data.next);
+    } else {
+      console.log(this.transactions);
+      Home.updateUI();
+    }
+  };
 
   static calculateSummary() {
     const firstEl = this.transactions[0];
     if (!firstEl) {
-      return;
+      throw Error('There are no transactions on selected range.');
     }
     const wallet = firstEl.running_balance;
     const sales = this.transactions.reduce((acc, prev) => {
@@ -142,12 +155,17 @@ class Home {
   }
 
   static updateUI() {
-    const summary = this.calculateSummary();
     const wallet = this.salesSummaryComponent.getSummary('WALLET');
     const sales = this.salesSummaryComponent.getSummary('SALES');
     const rebates = this.salesSummaryComponent.getSummary('REBATES');
     const topUps = this.salesSummaryComponent.getSummary('TOP UPS');
-    console.log(wallet);
+
+    let summary = null;
+    try {
+      summary = this.calculateSummary();
+    } catch (error) {
+      summary = { wallet: 0, sales: 0, rebates: 0, topUps: 0 };
+    }
     wallet.updateContent(summary.wallet);
     sales.updateContent(summary.sales);
     rebates.updateContent(summary.rebates);

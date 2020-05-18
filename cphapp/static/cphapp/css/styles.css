@@ -7,6 +7,11 @@ main {
   overflow: scroll;
 }
 
+main::-webkit-scrollbar {
+  display: none;
+  width: 0;
+}
+
 .sale-range-wrapper {
   display: flex;
   flex-direction: column;
@@ -61,7 +66,8 @@ main {
 }
 
 .select-options li:hover,
-.select-options li:focus {
+.select-options li:focus,
+.select-options li:active {
   cursor: pointer;
   color: white;
   background-color: #0c2c52;

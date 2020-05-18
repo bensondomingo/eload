@@ -10,8 +10,11 @@ from rest_framework import mixins
 
 from django_filters import rest_framework as filters
 
+from cphapp.models import SellLoadOrder
+from cphapp.api.serializers import SellOrderSerializer
 from cphapp.models import Transactions
 from cphapp.api.serializers import TransactionSerializer
+from cphapp.api.serializers import TransactionDetailSerializer
 from cphapp.filters import TransactionsFilter
 
 from cph import coinsph
@@ -29,12 +32,14 @@ class TransactionsListAPIView(generics.ListAPIView):
         if not request.query_params.get('offset'):
             utils.sync_transactions_db(
                 model=Transactions, serializer=self.serializer_class)
+        # utils.sync_sell_order_db(
+        #     model=SellLoadOrder, serializer=SellOrderSerializer)
         return super().list(request, *args, **kwargs)
 
 
 class TransactionsRetrieveUpdateAPIView(generics.RetrieveUpdateAPIView):
 
-    serializer_class = TransactionSerializer
+    serializer_class = TransactionDetailSerializer
     queryset = Transactions.objects.all()
 
 

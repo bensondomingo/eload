@@ -35,3 +35,50 @@ class Transactions(models.Model):
 
         return (f'{self.id} - {transaction_date} - {self.transaction_type} - '
                 f'{self.sell_amount if self.sell_amount else self.buy_amount}')
+
+
+class UserAgent(models.Model):
+    device = models.CharField(max_length=50)
+    platform = models.CharField(max_length=50)
+    browser = models.CharField(max_length=50, blank=True)
+    appsflyer_id = models.CharField(max_length=50, blank=True)
+    device_hash = models.CharField(max_length=70, blank=True)
+
+
+class Network(models.Model):
+    outlet_id = models.CharField(max_length=50, primary_key=True)
+    outlet_name = models.CharField(max_length=20)
+    name = models.CharField(max_length=50)
+
+    class Meta:
+        abstract = True
+
+
+class Order(models.Model):
+    id = models.CharField(max_length=100, primary_key=True)
+    amount = models.FloatField()
+    status = models.CharField(max_length=50)
+    fee = models.FloatField()
+    user_agent = models.ForeignKey(
+        UserAgent, null=True, on_delete=models.SET_NULL)
+    order_date = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+        ordering = ['-order_date']
+
+
+class SellLoadOrder(Order):
+    phone_number = models.CharField(max_length=13)
+    network = models.CharField(max_length=50, blank=True)
+    payment_id = models.CharField(max_length=50, blank=True)
+    reward_id = models.CharField(max_length=50, blank=True)
+
+    class Meta(Order.Meta):
+        verbose_name = 'sell load order'
+        verbose_name_plural = 'sell load orders'
+
+    def __str__(self):
+        return f'{self.status} - {self.phone_number} - {self.amount}'

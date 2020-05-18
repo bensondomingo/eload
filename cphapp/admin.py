@@ -1,6 +1,6 @@
 from django.contrib import admin
 from cphapp.models import Transactions
+from cphapp.models import SellLoadOrder
 
 admin.site.register(Transactions)
-
-# Register your models here.
+admin.site.register(SellLoadOrder)

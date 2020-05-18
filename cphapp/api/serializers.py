@@ -2,15 +2,15 @@ from datetime import datetime
 from django.utils.timezone import get_current_timezone
 from rest_framework import serializers
 from cphapp.models import Transactions
+from cphapp.models import SellLoadOrder
 from cphapp.utils import utc_to_local
+from cph.coinsph import get_sell_order
 
 # 10 minutes. Maybe this should live inside the settings.py
 TDELTA_MAX = 10 * 60
 
 
 class TransactionSerializer(serializers.ModelSerializer):
-    # transaction_date = serializers.DateTimeField(
-    #     input_formats=['%Y-%m-%d', '%Y-%m-%d'])
 
     class Meta:
         model = Transactions
@@ -52,3 +52,23 @@ class TransactionSerializer(serializers.ModelSerializer):
                     f' tdelta ({tdelta / 60})'))
         else:
             return super().validate(attrs)
+
+
+class TransactionDetailSerializer(TransactionSerializer):
+    order = serializers.SerializerMethodField()
+
+    def get_order(self, obj):
+        order = get_sell_order(id='5fe3c5b0763e4bfdae9ed46b6546e0eb')
+        phone_number = order['order']['phone_number_load']
+        network = order['order']['payment_account']['payment_outlet']['name']
+        return {
+            'phone_number': phone_number,
+            'network': network
+        }
+
+
+class SellOrderSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = SellLoadOrder
+        fields = '__all__'

@@ -110,3 +110,47 @@ def sync_transactions_db(model, serializer):
 
         if not page:
             terminate_loop = True
+
+
+def sync_sell_order_db(model, serializer):
+    db_count = model.objects.count()
+    response = coinsph.get_sell_order(limit=1)
+    current_count = response.get('meta').get('pagination').get('total')
+    if current_count == db_count:
+        return
+    diff_count = current_count - db_count
+
+    def fetch_sell_orders(diff_count, offset=0):
+        sell_orders = []
+        limit = diff_count if diff_count <= 200 else 200
+        remaining = diff_count - limit
+        response = coinsph.get_sell_order(limit=limit, offset=offset)
+        sell_orders += response.get('orders')
+        if remaining == 0:
+            return sell_orders
+        else:
+            sell_orders += fetch_sell_orders(remaining, offset=offset + limit)
+        return sell_orders
+
+    sell_orders = fetch_sell_orders(diff_count)
+
+    for sell in sell_orders:
+        order_date = datetime.fromtimestamp(int(sell.get('created_time')))
+        sell_data = {
+            'id': sell.get('id'),
+            'amount': sell.get('amount'),
+            'status': sell.get('delivery_status'),
+            'fee': sell.get('currency_fees'),
+            'order_date': order_date.isoformat(),
+            'phone_number': sell.get('phone_number_load'),
+            'network': sell.get('payment_outlet_name'),
+            'payment_id': sell.get('payments')[0].get('transaction_ref')
+        }
+        s = serializer(data=sell_data)
+        if not s.is_valid():
+            # TODO: Add error handling if transaction has an
+            # invalid data. Maybe put it in logs
+            pass
+        else:
+            s.create(s.validated_data)
+
