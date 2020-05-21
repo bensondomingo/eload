@@ -10,7 +10,7 @@ async function handleResponse(response) {
     }
 }
 
-function apiService(endpoint, method, data) {
+async function apiService(endpoint, method, data) {
     const config = {
         method: method || "GET",
         body: data !== undefined ? JSON.stringify(data) : null,
@@ -19,9 +19,13 @@ function apiService(endpoint, method, data) {
             "X-CSRFTOKEN": CSRF_TOKEN,
         }
     }
-    return fetch(endpoint, config)
-            .then(handleResponse)
-            .catch(error => console.log(error))
+    try {
+        const response = await fetch(endpoint, config);
+        return handleResponse(response);
+    }
+    catch (error) {
+        return console.log(error);
+    }
 }
 
 export { apiService };

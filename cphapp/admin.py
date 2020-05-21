@@ -1,6 +1,8 @@
 from django.contrib import admin
-from cphapp.models import Transactions
 
-admin.site.register(Transactions)
+from cphapp.models import (Transaction, LoadOrder, BuyOrder, UserAgent)
 
-# Register your models here.
+admin.site.register(Transaction)
+admin.site.register(LoadOrder)
+admin.site.register(BuyOrder)
+admin.site.register(UserAgent)

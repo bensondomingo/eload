@@ -1,54 +1,97 @@
 from datetime import datetime
 from django.utils.timezone import get_current_timezone
 from rest_framework import serializers
-from cphapp.models import Transactions
+from cphapp.models import Transaction
+from cphapp.models import UserAgent
+from cphapp.models import LoadOrder
+from cphapp.models import BuyOrder
 from cphapp.utils import utc_to_local
-
-# 10 minutes. Maybe this should live inside the settings.py
-TDELTA_MAX = 10 * 60
+from cphapp.utils import sync_transactions_db
 
 
 class TransactionSerializer(serializers.ModelSerializer):
-    # transaction_date = serializers.DateTimeField(
-    #     input_formats=['%Y-%m-%d', '%Y-%m-%d'])
 
     class Meta:
-        model = Transactions
+        model = Transaction
         fields = '__all__'
 
-    def validate(self, attrs):
 
-        if attrs.get('transaction_type') == 'buy':
-            return super().validate(attrs)
+class TransactionDetailSerializer(TransactionSerializer):
+    phone_number = serializers.CharField(source='loadorder.phone_number')
+    network = serializers.CharField(source='loadorder.network')
 
-        # Validate combined reward and sell
-        reward_amount = attrs.get('reward_amount')
-        balance_after_reward = attrs.get('running_balance')
-        balance_before_reward = self.initial_data.get(
-            'balance_before_reward')
-        calculated_balance = balance_before_reward + reward_amount
+    class Meta(TransactionSerializer.Meta):
+        fields = '__all__'
+
+    def __init__(self, instance, *args, **kwargs):
+        super(TransactionDetailSerializer, self).__init__(instance, *args, **kwargs)
+        if instance.transaction_type == 'buy_order':
+            self.fields.pop('phone_number')
+            self.fields.pop('network')
+
+
+class UserAgentSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = UserAgent
+        fields = '__all__'
+
+
+class OrderSerializer(serializers.ModelSerializer):
+    user_agent = UserAgentSerializer(write_only=True)
+
+    class Meta:
+        fields = '__all__'
+
+    def create(self, validated_data):
+        ua_dict = validated_data.get('user_agent')
+        ua_query = 'device_hash' if ua_dict.get('device_hash') else 'browser'
+        query_dict = {ua_query: ua_dict.get(ua_query)}
 
         try:
-            assert calculated_balance == balance_after_reward
-        except AssertionError:
-            raise serializers.ValidationError(
-                ('Running balance before and after reward is not as expected! '
-                    f'calculated_balance ({balance_before_reward + reward_amount})'
-                    f' != actual_balance ({balance_after_reward})'))
+            user_agent = UserAgent.objects.get(**query_dict)
+        except UserAgent.DoesNotExist:
+            serializer = UserAgentSerializer(
+                data=validated_data.get('user_agent'))
+            if not serializer.is_valid():
+                pass
+            user_agent = serializer.create(serializer.validated_data)
+        finally:
+            validated_data['user_agent'] = user_agent
 
-        # Validate time delta between sell and reward doesn't exceed limit
-        reward_created_at = attrs.get('transaction_date')
-        sell_created_at = self.initial_data.get('sell_transaction_date')[:-1]
-        sell_created_at = utc_to_local(datetime.fromisoformat(
-            sell_created_at), get_current_timezone())
-        tdelta = (reward_created_at - sell_created_at).total_seconds()
+        if validated_data.get('status') == 'canceled':
+            validated_data['transaction'] = None
+            return super().create(validated_data)
 
         try:
-            assert tdelta < TDELTA_MAX
-        except AssertionError:
-            raise serializers.ValidationError(
-                ('Time delta between reward and sell transactions exceeded the'
-                    f' limit ({TDELTA_MAX / 60}) minutes:'
-                    f' tdelta ({tdelta / 60})'))
-        else:
-            return super().validate(attrs)
+            transaction = Transaction.objects.get(
+                order_id=validated_data['id'])
+        except Transaction.DoesNotExist:
+            sync_transactions_db(
+                model=Transaction, serializer=TransactionSerializer)
+            transaction = Transaction.objects.get(
+                order_id=validated_data['id'])
+        finally:
+            validated_data['transaction'] = transaction
+
+        return super().create(validated_data)
+
+
+class LoadOrderSerializer(OrderSerializer):
+
+    class Meta(OrderSerializer.Meta):
+        model = LoadOrder
+
+
+class LoadOrderDetailSerializer(LoadOrderSerializer):
+    user_agent = UserAgentSerializer(read_only=True)
+    transaction = TransactionSerializer(read_only=True)
+
+    class Meta(LoadOrderSerializer.Meta):
+        fields = '__all__'
+
+
+class BuyOrderSerializer(OrderSerializer):
+
+    class Meta(OrderSerializer.Meta):
+        model = BuyOrder
