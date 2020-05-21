@@ -101,25 +101,10 @@ class Home {
     this.salesSummaryComponent.addSummary('TOP UPS', 0);
   }
 
-  // static fetchTransactions(args) {
-  //   const endpoint = '/cphapp/api/transactions/' + '?' + args;
-  //   console.log(endpoint);
-  //   apiService(endpoint).then((data) => {
-  //     console.log(data);
-  //     this.transactions.push(...data.results);
-  //     if (data.next) {
-  //       this.fetchTransactions(data.next);
-  //     } else {
-  //       console.log(this.transactions);
-  //       Home.updateUI();
-  //     }
-  //   });
-  // }
-
   static fetchTransactions = async function (args) {
     const endpoint = '/cphapp/api/transactions/' + '?' + args;
     console.log(endpoint);
-    let data = await apiService(endpoint);
+    let data = await apiService(endpoint + '&update=true');
     this.transactions.push(...data.results);
     if (data.next) {
       this.fetchTransactions(data.next);
@@ -134,16 +119,20 @@ class Home {
     if (!firstEl) {
       throw Error('There are no transactions on selected range.');
     }
+
+    const successful_sales = this.transactions.filter(
+      (el) => el.transaction_type === 'sell_order' && el.status === 'success'
+    );
     const wallet = firstEl.running_balance;
-    const sales = this.transactions.reduce((acc, prev) => {
-      return acc + prev.sell_amount;
+    const sales = successful_sales.reduce((acc, prev) => {
+      return acc + prev.amount;
     }, 0);
-    const rebates = this.transactions.reduce((acc, prev) => {
+    const rebates = successful_sales.reduce((acc, prev) => {
       return acc + prev.reward_amount;
     }, 0);
     const topUps =
-      this.transactions.filter(
-        (el) => el.sell_amount < 100 && el.transaction_type === 'sell'
+      successful_sales.filter(
+        (el) => el.amount < 100 && el.transaction_type === 'sell_order'
       ).length * 2;
 
     return {
