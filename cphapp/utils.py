@@ -41,47 +41,28 @@ def find_sell_order_pair(sell_order, entries):
 
 
 def group_entries(entries):
-    sell_orders = filter(lambda e: e['reference']['reason_code'] == 'sell_order'
-                         and not e['reference'].get('purpose'), entries)
-    buy_orders = filter(lambda e: e['reference']
-                        ['reason_code'] == 'buy_order', entries)
+    sell_orders = filter(
+        lambda e: e['reference']['reason_code'] == 'sell_order'
+        and not e['reference'].get('purpose'), entries)
+    buy_orders = filter(
+        lambda e: e['reference']['reason_code'] == 'buy_order', entries)
 
     possible_matches = [e for e in entries
                         if e['reference']['reason_code'] == 'reward'
                         or e['reference'].get('purpose') == 'refund']
 
     for buy_order in buy_orders:
-        yield {
-            'id': buy_order.get('id'),
-            'account': buy_order.get('account'),
-            'transaction_type': 'buy_order',
-            'status': buy_order.get('status'),
-            'amount': buy_order.get('amount'),
-            'posted_amount': buy_order.get('posted_amount'),
-            'running_balance': buy_order.get('running_balance'),
-            'order_id': buy_order['reference'].get('order_id'),
-            'transaction_date': buy_order.get('created_at')
-        }
+        yield buy_order
         continue
 
     for sell_order in sell_orders:
         pair = find_sell_order_pair(sell_order, possible_matches)
         if not pair:
+            sell_order['unpaired'] = True
             yield sell_order
             continue
-        yield {
-            'id': sell_order.get('id'),
-            'account': sell_order.get('account'),
-            'transaction_type': 'sell_order',
-            'status': 'refunded' if pair['reference'].get('purpose') else 'success',
-            'amount': sell_order.get('amount'),
-            'reward_amount': pair.get('amount'),
-            'posted_amount': sell_order.get('posted_amount'),
-            'running_balance': pair.get('running_balance'),
-            'order_id': sell_order['reference'].get('order_id'),
-            'reward_id': pair.get('id'),
-            'transaction_date': sell_order.get('created_at')
-        }
+        sell_order.update({'pair': pair})
+        yield sell_order
         continue
 
     if possible_matches:
@@ -95,7 +76,8 @@ def sync_transactions_db(model, serializer):
         transaction_type='sell_order').count()
 
     response = coinsph.get_crypto_payments(per_page=1, page=1)
-    if response['meta']['total_count'] == buy_order_count + 2 * sell_order_count:
+    actual_count = response['meta']['total_count']
+    if actual_count == buy_order_count + 2 * sell_order_count:
         return
 
     # Get last transaction entry from database
@@ -122,7 +104,7 @@ def sync_transactions_db(model, serializer):
         for transaction in group_entries(entries):
             try:
                 # Only non-paired have entry_type key
-                transaction['entry_type']
+                transaction['unpaired']
             except KeyError:
                 pass
             except TypeError:
@@ -139,7 +121,7 @@ def sync_transactions_db(model, serializer):
             if not s.is_valid():
                 # TODO: Add error handling if transaction has an
                 # invalid data. Maybe put it in logs
-                print(s.errors)
+                # print(s.errors)
                 pass
             else:
                 s.create(s.validated_data)
@@ -173,71 +155,67 @@ def sync_order_db(order_type, model, serializer):
     orders = fetch_orders(order_type, diff_count)
 
     for order in orders:
-        data = {
-            'id': order.get('id'),
-            'user_agent': order.get('user_agent'),
-        }
-
-        if order_type == 'sellorder':
-            data.update({
-                'amount': order.get('amount'),
-                'status': order.get('delivery_status'),
-                'fee': order.get('currency_fees'),
-                'order_date': datetime.fromtimestamp(
-                    int(order.get('created_time'))).isoformat(),
-                'phone_number': order.get('phone_number_load'),
-                'network': order.get('payment_outlet_name'),
-            })
-        else:
-            data.update({
-                'amount': order.get('subtotal'),
-                'fee': order.get('payment_method_fee'),
-                'status': order.get('status'),
-                'payment_method': order.get('payment_outlet_id'),
-                'order_date': datetime.fromtimestamp(
-                    int(order.get('created_at'))).isoformat(),
-            })
-
-        s = serializer(data=data)
+        s = serializer(data=order)
         if not s.is_valid():
             # TODO: Add error handling if transaction has an
             # invalid data. Maybe put it in logs
+            # print(s.errors)
             pass
         else:
             s.create(s.validated_data)
 
 
-def sync_sell_order_db(model, serializer):
-    db_count = model.objects.count()
-    response = coinsph.fetch_orders('sellorder', limit=1)
-    current_count = response.get('meta').get('pagination').get('total')
-    if current_count == db_count:
-        return
-    diff_count = current_count - db_count
-    sell_orders = fetch_orders('sellorder', diff_count)
-
-    for sell in sell_orders:
-        # order_date = datetime.fromtimestamp(int(sell.get('created_time')))
-        sell_data = {
-            'id': sell.get('id'),
-            'amount': sell.get('amount'),
-            'status': sell.get('delivery_status'),
-            'fee': sell.get('currency_fees'),
-            'order_date': datetime.fromtimestamp(
-                int(sell.get('created_time'))).isoformat(),
-            'phone_number': sell.get('phone_number_load'),
-            'network': sell.get('payment_outlet_name'),
-            'payment_id': sell.get('payments')[0].get('transaction_ref'),
-            'user_agent': sell.get('user_agent')
-        }
-        s = serializer(data=sell_data)
-        if not s.is_valid():
-            # TODO: Add error handling if transaction has an
-            # invalid data. Maybe put it in logs
-            pass
-        else:
-            s.create(s.validated_data)
+def load_order_data_map(data):
+    return {
+        'id': data.get('id'),
+        'user_agent': data.get('user_agent'),
+        'amount': data.get('amount'),
+        'status': data.get('delivery_status'),
+        'fee': data.get('currency_fees'),
+        'order_date': datetime.fromtimestamp(
+            int(data.get('created_time'))).isoformat(),
+        'phone_number': data.get('phone_number_load'),
+        'network': data.get('payment_outlet_name'),
+    }
 
 
-def sync_buy_order_db(model, serializer):
-    pass
+def buy_order_data_map(data):
+    return {
+        'id': data.get('id'),
+        'user_agent': data.get('user_agent'),
+        'amount': data.get('subtotal'),
+        'fee': data.get('payment_method_fee'),
+        'status': data.get('status'),
+        'payment_method': data.get('payment_outlet_id'),
+        'order_date': datetime.fromtimestamp(
+            int(data.get('created_at'))).isoformat(),
+    }
+
+
+def transaction_data_map(data):
+    transaction_type = data['reference']['reason_code']
+    mapped_data = {
+        'id': data.get('id'),
+        'account': data.get('account'),
+        'transaction_type': transaction_type,
+        'amount': data.get('amount'),
+        'posted_amount': data.get('posted_amount'),
+        'transaction_date': data.get('created_at'),
+        'order_id': data.get('reference')['order_id']
+    }
+
+    if transaction_type == 'buy_order':
+        mapped_data.update({
+            'status': data.get('status'),
+            'running_balance': data.get('running_balance')
+        })
+    elif transaction_type == 'sell_order':
+        pair = data.get('pair')
+        mapped_data.update({
+            'status': pair['reference'].get('purpose') or 'success',
+            'reward_amount': pair.get('amount'),
+            'running_balance': pair.get('running_balance'),
+            'reward_id': pair.get('id')
+        })
+
+    return mapped_data

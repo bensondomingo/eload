@@ -1,12 +1,14 @@
 from datetime import datetime
 from django.utils.timezone import get_current_timezone
 from rest_framework import serializers
+from rest_framework.fields import empty
+
 from cphapp.models import Transaction
 from cphapp.models import UserAgent
 from cphapp.models import LoadOrder
 from cphapp.models import BuyOrder
-from cphapp.utils import utc_to_local
-from cphapp.utils import sync_transactions_db
+from cphapp.utils import (
+    sync_transactions_db, transaction_data_map, load_order_data_map, buy_order_data_map)
 
 
 class TransactionSerializer(serializers.ModelSerializer):
@@ -14,6 +16,11 @@ class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
         fields = '__all__'
+
+    def __init__(self, instance=None, data=empty, **kwargs):
+        if data != empty:
+            data = transaction_data_map(data)
+        super().__init__(instance=instance, data=data, **kwargs)
 
 
 class TransactionDetailSerializer(TransactionSerializer):
@@ -24,7 +31,8 @@ class TransactionDetailSerializer(TransactionSerializer):
         fields = '__all__'
 
     def __init__(self, instance, *args, **kwargs):
-        super(TransactionDetailSerializer, self).__init__(instance, *args, **kwargs)
+        super(TransactionDetailSerializer, self).__init__(
+            instance, *args, **kwargs)
         if instance.transaction_type == 'buy_order':
             self.fields.pop('phone_number')
             self.fields.pop('network')
@@ -82,6 +90,11 @@ class LoadOrderSerializer(OrderSerializer):
     class Meta(OrderSerializer.Meta):
         model = LoadOrder
 
+    def __init__(self, instance=None, data=empty, **kwargs):
+        if data != empty:
+            data = load_order_data_map(data)
+        super().__init__(instance=instance, data=data, **kwargs)
+
 
 class LoadOrderDetailSerializer(LoadOrderSerializer):
     user_agent = UserAgentSerializer(read_only=True)
@@ -95,3 +108,8 @@ class BuyOrderSerializer(OrderSerializer):
 
     class Meta(OrderSerializer.Meta):
         model = BuyOrder
+
+    def __init__(self, instance=None, data=empty, **kwargs):
+        if data != empty:
+            data = buy_order_data_map(data)
+        super().__init__(instance=instance, data=data, **kwargs)

@@ -37,6 +37,12 @@ class Transaction(models.Model):
         return (f'{self.id} - {transaction_date} - {self.transaction_type} - '
                 f'{self.amount}')
 
+    @property
+    def order(self):
+        if self.transaction_type == 'sell_order':
+            return self.load_order
+        return self.buy_order
+
 
 class UserAgent(models.Model):
     device = models.CharField(max_length=50)
@@ -68,8 +74,6 @@ class Order(models.Model):
     order_date = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    transaction = models.OneToOneField(
-        Transaction, null=True, on_delete=models.SET_NULL)
 
     class Meta:
         abstract = True
@@ -79,6 +83,9 @@ class Order(models.Model):
 class LoadOrder(Order):
     phone_number = models.CharField(max_length=13)
     network = models.CharField(max_length=50, blank=True)
+    transaction = models.OneToOneField(
+        Transaction, null=True, on_delete=models.SET_NULL,
+        related_name='load_order')
 
     class Meta(Order.Meta):
         pass
@@ -89,6 +96,9 @@ class LoadOrder(Order):
 
 class BuyOrder(Order):
     payment_method = models.CharField(max_length=50)
+    transaction = models.OneToOneField(
+        Transaction, null=True, on_delete=models.SET_NULL,
+        related_name='buy_order')
 
     class Meta(Order.Meta):
         pass
