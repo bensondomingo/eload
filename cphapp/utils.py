@@ -1,6 +1,5 @@
 import pytz
 from datetime import datetime
-from django.utils import timezone
 
 from cph import coinsph
 
@@ -15,8 +14,10 @@ def find_sell_order_pair(sell_order, entries):
     created_at = datetime.fromisoformat(sell_order['created_at'][:-1])
     matched_by_ref_and_dt = [
         e for e in entries
-        if (e['reference'].get('reason_code') == 'reward' or e['reference'].get('purpose') == 'refund')
-        and (datetime.fromisoformat(e['created_at'][:-1]) - created_at).total_seconds() > 0]
+        if (e['reference'].get('reason_code') == 'reward'
+            or e['reference'].get('purpose') == 'refund')
+        and (datetime.fromisoformat(e['created_at'][:-1]) -
+             created_at).total_seconds() > 0]
 
     try:
         assert(matched_by_ref_and_dt)
@@ -25,10 +26,10 @@ def find_sell_order_pair(sell_order, entries):
         return result
     else:
         if len(matched_by_ref_and_dt) > 1:
-            order_running_balance = float(sell_order['running_balance'])
+            rb = float(sell_order['running_balance'])
             matched_by_rebates = [
                 e for e in matched_by_ref_and_dt
-                if order_running_balance + float(e['amount']) == float(e['running_balance'])]
+                if rb + float(e['amount']) == float(e['running_balance'])]
             try:
                 match = matched_by_rebates.__iter__().__next__()
             except StopIteration:

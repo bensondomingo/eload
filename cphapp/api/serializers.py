@@ -1,5 +1,3 @@
-from datetime import datetime
-from django.utils.timezone import get_current_timezone
 from rest_framework import serializers
 from rest_framework.fields import empty
 
@@ -7,8 +5,8 @@ from cphapp.models import Transaction
 from cphapp.models import UserAgent
 from cphapp.models import LoadOrder
 from cphapp.models import BuyOrder
-from cphapp.utils import (
-    sync_transactions_db, transaction_data_map, load_order_data_map, buy_order_data_map)
+from cphapp.utils import (sync_transactions_db, transaction_data_map,
+                          load_order_data_map, buy_order_data_map)
 
 
 class TransactionSerializer(serializers.ModelSerializer):
