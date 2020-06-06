@@ -24,7 +24,7 @@ SECRET_KEY = '@21qd)&g%d)^!*0)31f%l89uu8g_lkp$pd*@6^4#r63i-0@0o8'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '192.168.137.1']
+ALLOWED_HOSTS = ['localhost', '192.168.137.1', '127.0.0.1']
 
 
 # Application definition
@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django_filters',
     'cphapp.apps.CphappConfig',
+
+    'webpack_loader',
 ]
 
 MIDDLEWARE = [
@@ -122,13 +124,22 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'assets'),
-    os.path.join(BASE_DIR, 'assets', 'scripts')
+    # os.path.join(BASE_DIR, 'assets'),
+    os.path.join(BASE_DIR, 'frontend', 'dist')
 ]
+
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     # 'DEFAULT_FILTER_BACKENDS': ('django_filters.rest_framework.DjangoFilterBackend',),
     'PAGE_SIZE': 10,
+}
+
+WEBPACK_LOADER = {
+    'DEFAULT': {
+        'CACHE': not DEBUG,
+        'BUNDLE_DIR_NAME': 'dist/',
+        'STATS_FILE': os.path.join(BASE_DIR, 'frontend', 'webpack-stats.json'),
+    }
 }
