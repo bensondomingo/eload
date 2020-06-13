@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django_filters',
     'cphapp.apps.CphappConfig',
+    'profiles.apps.ProfilesConfig',
 
     'webpack_loader',
 ]
@@ -143,3 +144,10 @@ WEBPACK_LOADER = {
         'STATS_FILE': os.path.join(BASE_DIR, 'frontend', 'webpack-stats.json'),
     }
 }
+
+try:
+    from authentication.auth_settings import *
+    INSTALLED_APPS += AUTH_INSTALLED_APPS
+    REST_FRAMEWORK.update(AUTH_REST_FRAMEWORK)
+except ImportError:
+    pass

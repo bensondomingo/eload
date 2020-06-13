@@ -23,7 +23,8 @@ from landing.views import IndexTemplateView
 urlpatterns = [
     path('', IndexTemplateView.as_view(), name='landing'),
     path('admin/', admin.site.urls),
-    path('cphapp/', include('cphapp.urls'))
+    path('cphapp/', include('cphapp.urls')),
+    path('auth/', include('authentication.urls'))
 ]
 
 if settings.DEBUG:

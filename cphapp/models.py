@@ -43,6 +43,12 @@ class Transaction(models.Model):
             return self.load_order
         return self.buy_order
 
+    @property
+    def user_agent(self):
+        if self.transaction_type == 'sell_order':
+            return self.load_order.user_agent
+        return self.buy_order.user_agent
+
 
 class UserAgent(models.Model):
     device = models.CharField(max_length=50)

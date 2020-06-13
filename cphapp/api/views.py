@@ -1,8 +1,4 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
 from rest_framework import generics
-from rest_framework import mixins
 
 from django_filters import rest_framework as filters
 
@@ -12,8 +8,6 @@ from cphapp.api.serializers import (
     TransactionSerializer, TransactionDetailSerializer)
 
 from cphapp.filters import TransactionsFilter
-
-from cph import coinsph
 from cphapp import utils
 
 
@@ -25,9 +19,11 @@ class TransactionsListAPIView(generics.ListAPIView):
     filterset_class = TransactionsFilter
 
     def list(self, request, *args, **kwargs):
-        if not request.query_params.get('offset'):
-            utils.sync_transactions_db(
-                model=Transaction, serializer=self.serializer_class)
+        # if not request.query_params.get('offset'):
+        #     utils.sync_order_db('sellorder', model=LoadOrder,
+        #                         serializer=LoadOrderSerializer)
+        #     utils.sync_order_db('buyorder', model=BuyOrder,
+        #                         serializer=BuyOrderSerializer)
         return super().list(request, *args, **kwargs)
 
 

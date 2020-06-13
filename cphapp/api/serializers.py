@@ -9,7 +9,16 @@ from cphapp.utils import (sync_transactions_db, transaction_data_map,
                           load_order_data_map, buy_order_data_map)
 
 
+class UserAgentSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = UserAgent
+        fields = '__all__'
+
+
 class TransactionSerializer(serializers.ModelSerializer):
+    # phone_number = serializers.SerializerMethodField()
+    user_agent = UserAgentSerializer(source='order.user_agent')
 
     class Meta:
         model = Transaction
@@ -19,6 +28,15 @@ class TransactionSerializer(serializers.ModelSerializer):
         if data != empty:
             data = transaction_data_map(data)
         super().__init__(instance=instance, data=data, **kwargs)
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        if ret.get('transaction_type') == 'sell_order':
+            ret['phone_number'] = instance.order.phone_number
+            ret['network'] = instance.order.network
+        elif ret.get('transaction_type') == 'buy_order':
+            ret['payment_method'] = instance.order.payment_method
+        return ret
 
 
 class TransactionDetailSerializer(TransactionSerializer):
@@ -34,13 +52,6 @@ class TransactionDetailSerializer(TransactionSerializer):
         if instance.transaction_type == 'buy_order':
             self.fields.pop('phone_number')
             self.fields.pop('network')
-
-
-class UserAgentSerializer(serializers.ModelSerializer):
-
-    class Meta:
-        model = UserAgent
-        fields = '__all__'
 
 
 class OrderSerializer(serializers.ModelSerializer):

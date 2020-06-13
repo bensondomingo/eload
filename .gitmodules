@@ -4,3 +4,6 @@
 [submodule "frontend"]
 	path = frontend
 	url = https://github.com/bensondomingo/eload-frontend.git
+[submodule "authentication"]
+	path = authentication
+	url = https://github.com/bensondomingo/authentication.git

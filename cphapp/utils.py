@@ -4,6 +4,14 @@ from datetime import datetime
 from cph import coinsph
 
 
+class OrderList(list):
+    def __init__(self, *args):
+        super().__init__(args)
+
+    def __sub__(self, other):
+        return self.__class__(*[item for item in self if item not in other])
+
+
 def utc_to_local(utc_datetime, local_tz):
     local_dt = utc_datetime.replace(tzinfo=pytz.utc).astimezone(local_tz)
     return local_tz.normalize(local_dt)
@@ -42,28 +50,24 @@ def find_sell_order_pair(sell_order, entries):
 
 
 def group_entries(entries):
-    sell_orders = filter(
-        lambda e: e['reference']['reason_code'] == 'sell_order'
-        and not e['reference'].get('purpose'), entries)
-    buy_orders = filter(
-        lambda e: e['reference']['reason_code'] == 'buy_order', entries)
+    buy_orders = list(filter(
+        lambda e: e['reference']['reason_code'] == 'buy_order', entries))
 
     possible_matches = [e for e in entries
                         if e['reference']['reason_code'] == 'reward'
                         or e['reference'].get('purpose') == 'refund']
 
-    for buy_order in buy_orders:
-        yield buy_order
-        continue
-
-    for sell_order in sell_orders:
-        pair = find_sell_order_pair(sell_order, possible_matches)
-        if not pair:
-            sell_order['unpaired'] = True
-            yield sell_order
-            continue
-        sell_order.update({'pair': pair})
-        yield sell_order
+    for e in [e for e in entries if e not in possible_matches]:
+        if e in buy_orders:
+            yield e
+        else:
+            pair = find_sell_order_pair(e, possible_matches)
+            if not pair:
+                e['unpaired'] = True
+                yield e
+                continue
+            e.update({'pair': pair})
+            yield e
         continue
 
     if possible_matches:
