@@ -14,6 +14,7 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     user = serializers.StringRelatedField(read_only=True)
     avatar = serializers.ImageField(read_only=True)
+    device_hash = serializers.CharField(source='user_agent.device_hash')
 
     class Meta:
         model = Profile

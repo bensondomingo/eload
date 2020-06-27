@@ -6,8 +6,10 @@ from rest_framework import permissions
 from rest_framework import viewsets
 from rest_framework import filters
 
-from profiles.models import Profile
+from rest_framework.views import APIView
+from rest_framework.response import Response
 
+from profiles.models import Profile
 from profiles.api.permissions import IsOwnProfileOrReadOnly
 from profiles.api.serializers import ProfileSerializer
 from profiles.api.serializers import ProfileAvatarSerializer
@@ -35,6 +37,15 @@ class UserAPIViewSet(viewsets.GenericViewSet,
         return USER_MODEL.objects.exclude(is_superuser=True)
 
 
+class CurrentUser(APIView):
+
+    def get(self, request, format=None):
+
+        user = {'username': request.user.username,
+                'is_authenticated': request.user.is_authenticated}
+        return Response(user)
+
+
 class ProfileAPIViewSet(viewsets.GenericViewSet,
                         mixins.ListModelMixin,
                         mixins.RetrieveModelMixin,
@@ -42,8 +53,11 @@ class ProfileAPIViewSet(viewsets.GenericViewSet,
 
     queryset = Profile.objects.all()
     serializer_class = ProfileSerializer
-    permission_classes = [permissions.IsAuthenticated, IsOwnProfileOrReadOnly]
+    # permission_classes = [permissions.IsAuthenticated, IsOwnProfileOrReadOnly]
     lookup_field = 'user__username'
+
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
 
 class ProfileListAPIView(generics.ListAPIView):

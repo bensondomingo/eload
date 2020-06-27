@@ -150,7 +150,7 @@ def fetch_orders(order_type, count, offset=0):
 
 
 def sync_order_db(order_type, model, serializer):
-    num_instance_in_db = model.objects.count()
+    num_instance_in_db = model.objects.filter(order_type=order_type).count()
     response = coinsph.fetch_orders(order_type, limit=1)
     current_count = response.get('meta').get('pagination').get('total')
     if current_count == num_instance_in_db:
@@ -160,6 +160,7 @@ def sync_order_db(order_type, model, serializer):
     orders = fetch_orders(order_type, diff_count)
 
     for order in orders:
+        order['order_type'] = order_type
         s = serializer(data=order)
         if not s.is_valid():
             # TODO: Add error handling if transaction has an
@@ -168,6 +169,15 @@ def sync_order_db(order_type, model, serializer):
             pass
         else:
             s.create(s.validated_data)
+
+
+def order_data_map(data):
+    if data.get('order_type') == 'sellorder':
+        parsed = load_order_data_map(data)
+    else:
+        parsed = buy_order_data_map(data)
+    parsed['order_type'] = data.get('order_type')
+    return parsed
 
 
 def load_order_data_map(data):

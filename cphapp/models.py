@@ -72,42 +72,29 @@ class Network(models.Model):
 
 class Order(models.Model):
     id = models.CharField(max_length=100, primary_key=True)
+    order_type = models.CharField(max_length=20)
     amount = models.FloatField()
     status = models.CharField(max_length=50)
     fee = models.FloatField()
     user_agent = models.ForeignKey(
         UserAgent, null=True, on_delete=models.SET_NULL)
     order_date = models.DateTimeField()
+    transaction = models.OneToOneField(
+        Transaction, null=True, on_delete=models.SET_NULL,
+        related_name='order')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # LoadOrder fields
+    phone_number = models.CharField(max_length=13, blank=True, null=True)
+    network = models.CharField(max_length=50, blank=True, null=True)
+
+    # BuyOrder fields
+    payment_method = models.CharField(max_length=50, blank=True, null=True)
+
     class Meta:
-        abstract = True
         ordering = ['-order_date']
 
-
-class LoadOrder(Order):
-    phone_number = models.CharField(max_length=13)
-    network = models.CharField(max_length=50, blank=True)
-    transaction = models.OneToOneField(
-        Transaction, null=True, on_delete=models.SET_NULL,
-        related_name='load_order')
-
-    class Meta(Order.Meta):
-        pass
-
     def __str__(self):
-        return f'{self.status} - {self.phone_number} - {self.amount}'
-
-
-class BuyOrder(Order):
-    payment_method = models.CharField(max_length=50)
-    transaction = models.OneToOneField(
-        Transaction, null=True, on_delete=models.SET_NULL,
-        related_name='buy_order')
-
-    class Meta(Order.Meta):
-        pass
-
-    def __str__(self):
-        return f'{self.status} - {self.payment_method} - {self.amount}'
+        return f'{self.order_type} - {self.status} - {self.phone_number} - \
+            {self.amount}'

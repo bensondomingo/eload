@@ -3,10 +3,8 @@ from rest_framework.fields import empty
 
 from cphapp.models import Transaction
 from cphapp.models import UserAgent
-from cphapp.models import LoadOrder
-from cphapp.models import BuyOrder
-from cphapp.utils import (sync_transactions_db, transaction_data_map,
-                          load_order_data_map, buy_order_data_map)
+from cphapp.models import Order
+from cphapp.utils import (transaction_data_map, order_data_map)
 
 
 class UserAgentSerializer(serializers.ModelSerializer):
@@ -17,8 +15,7 @@ class UserAgentSerializer(serializers.ModelSerializer):
 
 
 class TransactionSerializer(serializers.ModelSerializer):
-    # phone_number = serializers.SerializerMethodField()
-    user_agent = UserAgentSerializer(source='order.user_agent')
+    user_agent = UserAgentSerializer(source='order.user_agent', read_only=True)
 
     class Meta:
         model = Transaction
@@ -58,7 +55,13 @@ class OrderSerializer(serializers.ModelSerializer):
     user_agent = UserAgentSerializer(write_only=True)
 
     class Meta:
+        model = Order
         fields = '__all__'
+
+    def __init__(self, instance=None, data=empty, **kwargs):
+        if data != empty:
+            data = order_data_map(data)
+        super().__init__(instance=instance, data=data, **kwargs)
 
     def create(self, validated_data):
         ua_dict = validated_data.get('user_agent')
@@ -76,49 +79,16 @@ class OrderSerializer(serializers.ModelSerializer):
         finally:
             validated_data['user_agent'] = user_agent
 
-        if validated_data.get('status') == 'canceled':
+        if validated_data.get('status') != 'settled':
             validated_data['transaction'] = None
             return super().create(validated_data)
 
-        try:
-            transaction = Transaction.objects.get(
-                order_id=validated_data['id'])
-        except Transaction.DoesNotExist:
-            sync_transactions_db(
-                model=Transaction, serializer=TransactionSerializer)
-            transaction = Transaction.objects.get(
-                order_id=validated_data['id'])
-        finally:
-            validated_data['transaction'] = transaction
+        validated_data['transaction'] = Transaction.objects.get(
+            order_id=validated_data['id'])
 
         return super().create(validated_data)
 
-
-class LoadOrderSerializer(OrderSerializer):
-
-    class Meta(OrderSerializer.Meta):
-        model = LoadOrder
-
-    def __init__(self, instance=None, data=empty, **kwargs):
-        if data != empty:
-            data = load_order_data_map(data)
-        super().__init__(instance=instance, data=data, **kwargs)
-
-
-class LoadOrderDetailSerializer(LoadOrderSerializer):
-    user_agent = UserAgentSerializer(read_only=True)
-    transaction = TransactionSerializer(read_only=True)
-
-    class Meta(LoadOrderSerializer.Meta):
-        fields = '__all__'
-
-
-class BuyOrderSerializer(OrderSerializer):
-
-    class Meta(OrderSerializer.Meta):
-        model = BuyOrder
-
-    def __init__(self, instance=None, data=empty, **kwargs):
-        if data != empty:
-            data = buy_order_data_map(data)
-        super().__init__(instance=instance, data=data, **kwargs)
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret_value = {k: v for k, v in ret.items() if v is not None}
+        return ret_value
