@@ -9,11 +9,12 @@ from rest_framework import filters
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
-from profiles.models import Profile
+from profiles.models import Profile, SummaryCard
 from profiles.api.permissions import IsOwnProfileOrReadOnly
 from profiles.api.serializers import ProfileSerializer
 from profiles.api.serializers import ProfileAvatarSerializer
 from profiles.api.serializers import UserSerializer
+from profiles.api.serializers import SummaryCardSerializer
 
 
 USER_MODEL = get_user_model()
@@ -37,13 +38,13 @@ class UserAPIViewSet(viewsets.GenericViewSet,
         return USER_MODEL.objects.exclude(is_superuser=True)
 
 
-class CurrentUser(APIView):
+class CurrentUserAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, format=None):
-
-        user = {'username': request.user.username,
-                'is_authenticated': request.user.is_authenticated}
-        return Response(user)
+        obj = USER_MODEL.objects.get(username=self.request.user.username)
+        serializer = UserSerializer(instance=obj)
+        return Response(serializer.data)
 
 
 class ProfileAPIViewSet(viewsets.GenericViewSet,
@@ -53,8 +54,11 @@ class ProfileAPIViewSet(viewsets.GenericViewSet,
 
     queryset = Profile.objects.all()
     serializer_class = ProfileSerializer
-    # permission_classes = [permissions.IsAuthenticated, IsOwnProfileOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsOwnProfileOrReadOnly]
     lookup_field = 'user__username'
+
+    def get_queryset(self):
+        return super().get_queryset().exclude(user_agent=None)
 
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
@@ -73,3 +77,15 @@ class ProfileRUAPIView(generics.RetrieveUpdateAPIView):
     serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnProfileOrReadOnly]
     lookup_field = 'user__username'
+
+
+class SummaryCardAPIViewSet(viewsets.GenericViewSet,
+                            mixins.ListModelMixin,
+                            mixins.CreateModelMixin,
+                            mixins.RetrieveModelMixin,
+                            mixins.UpdateModelMixin,
+                            mixins.DestroyModelMixin):
+
+    queryset = SummaryCard.objects.all()
+    serializer_class = SummaryCardSerializer
+    permission_classes = [permissions.IsAuthenticated]

@@ -30,5 +30,8 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
+    urlpatterns.insert(0, path(
+        'test-auth/', include('rest_framework.urls',
+                              namespace='rest_framework')))
     urlpatterns += static(settings.STATIC_URL,
                           document_root=settings.STATIC_ROOT)

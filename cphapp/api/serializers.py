@@ -79,7 +79,8 @@ class OrderSerializer(serializers.ModelSerializer):
         finally:
             validated_data['user_agent'] = user_agent
 
-        if validated_data.get('status') != 'settled':
+        status = validated_data.get('status')
+        if status == 'expired' or status == 'canceled':
             validated_data['transaction'] = None
             return super().create(validated_data)
 
