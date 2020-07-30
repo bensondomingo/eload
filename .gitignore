@@ -191,4 +191,4 @@ yarn-error.log
 migrations/
 migrations/*
 
-requirements.txt
+logs/

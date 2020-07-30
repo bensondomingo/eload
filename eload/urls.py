@@ -14,18 +14,24 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 
 from landing.views import IndexTemplateView
 
 urlpatterns = [
-    path('', IndexTemplateView.as_view(), name='landing'),
     path('admin/', admin.site.urls),
-    path('cphapp/', include('cphapp.urls'))
+    path('', IndexTemplateView.as_view(), name='landing'),
+    path('cphapp/', include('cphapp.urls')),
+    path('accounts/', include('profiles.api.urls')),
+    path('auth/', include('authentication.urls')),
+    re_path(r"^.*$", IndexTemplateView.as_view(), name='entry-point')
 ]
 
 if settings.DEBUG:
+    urlpatterns.insert(0, path(
+        'test-auth/', include('rest_framework.urls',
+                              namespace='rest_framework')))
     urlpatterns += static(settings.STATIC_URL,
                           document_root=settings.STATIC_ROOT)
