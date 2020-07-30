@@ -19,6 +19,17 @@ class Profile(models.Model):
 
 
 class SummaryCard(models.Model):
+    SALES = 'sales'
+    TOP_UPS = 'top_ups'
+    REBATES = 'rebates'
+    CASH_IN = 'cash_in'
+    NAME_CHOICES = [
+        (SALES, 'Sales'),
+        (TOP_UPS, 'Top ups'),
+        (REBATES, 'Rebates'),
+        (CASH_IN, 'cash_in')
+    ]
+
     name = models.CharField(max_length=50)
     color = models.CharField(max_length=20, default='primary')
     is_dark = models.BooleanField(default=True)

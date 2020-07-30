@@ -9,6 +9,8 @@ https://docs.djangoproject.com/en/2.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.2/ref/settings/
 """
+# Disable lint errors for this file
+# flake8: noqa
 
 import os
 
@@ -37,9 +39,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django_filters',
+    'django_celery_beat',
+
     'cphapp.apps.CphappConfig',
     'profiles.apps.ProfilesConfig',
-
     'webpack_loader',
 ]
 
@@ -79,10 +82,21 @@ WSGI_APPLICATION = 'eload.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'mydb',
+        'USER': 'bdomingo',
+        'PASSWORD': '1234',
+        'HOST': 'localhost',
+        'PORT': '5433',
     }
 }
 
@@ -131,10 +145,59 @@ STATICFILES_DIRS = [
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'formatters': {
+        'simple': {
+            'format': '%(name)s - %(levelname)s - %(message)s',
+            'style': '%'
+        },
+        'verbose': {
+            'format': ('%(asctime)s: %(levelname)s - %(processName)s/%(threadName)s/%(name)s - %(message)s'),
+            'style': '%'
+        },
+        'celery.formatter': {
+            '()': 'celery.app.log.TaskFormatter',
+            'format': '%(asctime)s: %(levelname)s/%(processName)s - %(message)s'
+        }
+    },
+
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+            'level': 'DEBUG'
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'systemlogs.log'),
+            'formatter': 'verbose',
+            'level': 'WARNING'
+        },
+        'celery.console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'celery.formatter',
+            'level': 'DEBUG'
+        }
+    },
+
+    'loggers': {
+        '': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO'
+        },
+        'celery': {
+            'handlers': ['celery.console', 'file'],
+            'level': 'INFO'
+        }
+    }
+}
+
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     # 'DEFAULT_FILTER_BACKENDS': ('django_filters.rest_framework.DjangoFilterBackend',),
-    'PAGE_SIZE': 10,
+    'PAGE_SIZE': 100,
 }
 
 WEBPACK_LOADER = {
@@ -144,6 +207,17 @@ WEBPACK_LOADER = {
         'STATS_FILE': os.path.join(BASE_DIR, 'frontend', 'webpack-stats.json'),
     }
 }
+
+# CELERY STUFF
+CELERY_BROKER_URL = 'redis://localhost:6379'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379'
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Manila'
+CELERY_IMPORTS = ['cphapp.tasks']
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 
 try:
     from authentication.auth_settings import *

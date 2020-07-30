@@ -1,11 +1,8 @@
 from django.urls import path
 
-from cphapp.api.views import (
-    TransactionsListAPIView, OrderListAPIView)
+from cphapp.api.views import TransactionsListAPIView
 
 urlpatterns = [
     path('transactions/', TransactionsListAPIView.as_view(),
-         name='transactions-list'),
-    path('orders/', OrderListAPIView.as_view(),
-         name='loadorders-list')
+         name='transactions-list')
 ]
