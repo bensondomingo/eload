@@ -1,17 +1,19 @@
 from __future__ import absolute_import, unicode_literals
+import os
 import json
 import logging
 from requests.exceptions import ConnectionError
-from re import search as re_search
 
+from django.contrib.auth import get_user_model
+from django.conf import settings
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 
 from cphapp.models import LoadTransaction
 from cphapp.api.serializers import LoadTransactionSerializer
 from cphapp import redis
 from cph.coinsph import (
-    fetch_crypto_payment, fetch_orders,
-    request_new_order as rno, ThrottleError)
+    fetch_crypto_payment, fetch_orders, request_new_order as rno)
 
 from celery import shared_task
 from celery.result import AsyncResult
@@ -28,25 +30,29 @@ logger = logging.getLogger(__name__)
 TASK_ID_ONGOING_SYNC = 'task.id.ongoing.sync'
 TASK_ID_PENDING_ORDERS = 'task.id.pending.orders'
 
+USER_MODEL = get_user_model()
+
 
 class RequestNewOrderTask(Task):
-
-    def _on_success(self, retval, task_id, args, kwargs):
-        obj = LoadTransaction.objects.get(id=kwargs.get('transaction_id'))
-        s = LoadTransactionSerializer(obj, data=retval, partial=True)
-        if not s.is_valid():
-            pass
-        s.save()
-        AsyncResult(task_id).forget()
 
     def on_success(self, retval, task_id, args, kwargs):
         # Start update_order_data task
         transaction_id = kwargs.get('transaction_id')
+        retval.update({
+            'transaction_id': transaction_id,
+            # 'retailer': retailer_id,
+            'transaction_type': 'sellorder'})
+
+        s = LoadTransactionSerializer(data=retval)
+        if not s.is_valid():
+            logger.error(s.errors)
+            raise ValidationError(s.error_messages)
+        s.save()
+
         logger.info('Load order %s successfully created', transaction_id)
         logger.info('Running update_order_data task ...')
-        update_order_data.apply(kwargs={'id': transaction_id})
         AsyncResult(task_id).forget()
-        return super().on_success(retval, task_id, args, kwargs)
+        update_order_data.apply(kwargs={'id': transaction_id})
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         transaction_id = kwargs.get('transaction_id')
@@ -88,14 +94,13 @@ def request_new_order(self, transaction_id, data):
 class UpdateOrderDataTask(Task):
 
     def on_success(self, retval, task_id, args, kwargs):
-        obj = LoadTransaction.objects.get(
-            id=kwargs.get('id'))
-        s = LoadTransactionSerializer(obj, retval, partial=True)
-        if not s.is_valid():
-            pass
-        s.update(obj, s.validated_data)
+        # retval['model_id'] = kwargs.get('id')
         AsyncResult(id=task_id).forget()
-        update_payment_data.apply_async(kwargs={'order_id': obj.order_id})
+
+        order_status = retval.get('delivery_status')
+        update_payment_data.apply(
+            kwargs={'order_id': retval.get('id'),
+                    'order_status': order_status})
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         return super().on_failure(exc, task_id, args, kwargs, einfo)
@@ -106,8 +111,17 @@ class UpdateOrderDataTask(Task):
     autoretry_for=(Exception, ),
     retry_backoff=True)
 def update_order_data(self, id):
-    resp = fetch_orders(order_type='sellorder', external_transaction_id=id)
-    order = resp.json().get('orders')[0]
+    if id in defines.TEST_ORDER_IDS:
+        logger.info('update_order_data in TEST mode, using %s',
+                    json_file_path.GET_REQUEST_RESP_JSON)
+        with open(json_file_path.GET_REQUEST_RESP_JSON, 'r') as f:
+            resp = json.load(f)
+            order = resp.get('orders')[0]
+    else:
+        logger.info('update_order_data in PROD mode, fetch new data')
+        resp = fetch_orders(order_type='sellorder', external_transaction_id=id)
+        order = resp.json().get('orders')[0]
+
     order_status = order.get('delivery_status')
     if order_status not in ['settled', 'refunded', 'expired']:
         e = exceptions.OrderStatusError(order_status, id)
@@ -115,6 +129,75 @@ def update_order_data(self, id):
         raise e
     logger.info('Order %s status already finalized.', id)
     return order
+
+
+class UpdatePaymentTask(Task):
+
+    def on_success(self, retval, task_id, args, kwargs):
+        order_id = kwargs.get('order_id')
+        logger.info(order_id)
+        try:
+            obj = LoadTransaction.objects.get(order_id=kwargs.get('order_id'))
+        except LoadTransaction.MultipleObjectsReturned as e:
+            logger.error(order_id)
+            raise e
+
+        order_status = kwargs.get('order_status')
+        if order_status is not None:
+            retval.update({'status': order_status})
+
+        # Calculate reward_amount
+        if obj.transaction_type == 'sellorder':
+            reward_th = os.getenv('LOAD_NINJA_REWARD_TH',
+                                  settings.LOADNINJA_REWARD_TH)
+            reward_factor = reward_th['reward_factor'] \
+                if obj.sold_this_month <= reward_th['limit'] \
+                else reward_th['reward_factor_onwards']
+            retval['reward_amount'] = obj.amount * reward_factor
+
+        s = LoadTransactionSerializer(obj, data=retval, partial=True)
+        if not s.is_valid():
+            logger.critical(s.errors)
+        obj = s.update(obj, s.validated_data)
+
+        # Clear result from result backend
+        logger.info('Clearing task %s result from result backend.',
+                    self.request.id)
+        AsyncResult(task_id).forget()
+        logger.info('Task %s succeeded', self.request.id)
+
+
+@shared_task(bind=True, base=UpdatePaymentTask,
+             autoretry_for=(Exception,),
+             retry_backoff=True)
+def update_payment_data(self, order_id, order_status=None):
+    try:
+        response = fetch_crypto_payment(order_id)
+    except ConnectionError as e:
+        logger.exception("Something wen't wrong with the connection while "
+                         "fetching payment data of transaction %s", order_id)
+        raise e
+    except AssertionError as e:
+        logger.exception('An unexpected status code received from server '
+                         'while fetching payment data of transaction %s',
+                         order_id)
+        raise e
+    except Exception as e:
+        logger.exception('An unknown error has occured while fetching '
+                         'payment data of transaction %s', order_id)
+        raise e
+
+    if response.status_code == status.HTTP_429_TOO_MANY_REQUESTS:
+        logger.error(
+            'Encountered error HTTP_429_TOO_MANY_REQUESTS. order_id: %s',
+            order_id)
+        raise exceptions.CryptoPaymentThrottlingError(order_id=order_id)
+    payment = response.json().get('crypto-payments')[0]
+
+    return {
+        'posted_amount': payment.get('posted_amount'),
+        'running_balance': payment.get('running_balance')
+    }
 
 
 @shared_task(ignore_result=True)
@@ -134,9 +217,10 @@ def sync_order_db():
     try:
         utility.sync_order_db('sellorder')
         utility.sync_order_db('buyorder')
+
         logger.info('Sync DONE')
-    except Exception:
-        print('An error occured during DB sync')
+    except Exception as e:
+        logger.exception(e.__str__())
     finally:
         redis.set(TASK_ID_ONGOING_SYNC, 'FALSE')
 
@@ -158,127 +242,3 @@ def check_pending_orders():
         logger.info('Enabling sync_order_db task')
         periodic_sync_db.save()
         sync_order_db.delay()
-
-
-class UpdatePaymentTask(Task):
-
-    def on_success(self, retval, task_id, args, kwargs):
-
-        data = retval
-        transaction = LoadTransaction.objects.get(
-            order_id=kwargs.get('order_id'))
-
-        if transaction.transaction_type == 'sellorder':
-            data['running_balance'] = float(
-                data.get('running_balance')) + transaction.reward_amount
-
-        # Update
-        serializer = LoadTransactionSerializer(
-            transaction, partial=True, data=data)
-        if not serializer.is_valid():
-            logging.critical(serializer.error_messages)
-        serializer.save()
-
-        # Clear result from result backend
-        logger.info('Clearing task %s result from result backend.',
-                    self.request.id)
-        AsyncResult(task_id).forget()
-        logger.info('Task %s succeeded', self.request.id)
-
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
-        # Wait for 30 seconds before firing retry
-        self.retry(countdown=30)
-
-
-@shared_task(bind=True, base=UpdatePaymentTask)
-def update_payment_data(self, order_id):
-    try:
-        response = fetch_crypto_payment(order_id)
-    except ConnectionError as e:
-        logger.exception("Something wen't wrong with the connection while "
-                         "fetching payment data of transaction %s. Will retry "
-                         "automatically after 60 seconds", order_id)
-        raise e
-    except AssertionError as e:
-        logger.exception('An unexpected status code received from server '
-                         'while fetching payment data of transaction %s. Will '
-                         'retry automatically after 60 seconds', order_id)
-        raise e
-    except Exception as e:
-        logger.exception('An unknown error has occured while fetching '
-                         'payment data of transaction %s. Will retry '
-                         'automatically after 60 seconds', order_id)
-        raise e
-
-    try:
-        assert(response.get('errors') is None)
-    except AssertionError:
-        logger.exception(response.get('errors'))
-        err_msg = response.get('errors').get('detail')
-        pat = r'Request was throttled. Expected available in (\d+) second|s.'
-        res = re_search(pat, err_msg)
-        try:
-            assert(res is not None)
-        except AssertionError:
-            logger.critical('An unknown error has occured. Please review '
-                            'details then write a necessary err handler to '
-                            'catch this error.')
-            logger.exception('Error')
-            return
-        else:
-            delay = float(res.group(1)) + 2
-            logger.error(err_msg)
-            logger.info('Retry in %d seconds', delay)
-            self.retry(
-                countdown=delay, exc=ThrottleError(err_msg))
-            return
-
-    payment = response.get('crypto-payments')[0]
-    logger.debug(payment)
-    return {
-        'posted_amount': payment.get('posted_amount'),
-        'running_balance': payment.get('running_balance')
-    }
-
-
-class CustomTask(Task):
-
-    def on_success(self, retval, task_id, args, kwargs):
-        print('on_success called!')
-        print(retval, task_id, args, kwargs)
-
-        res = AsyncResult(task_id)
-        print(res.status)
-        res.forget()
-        print(res.status)
-
-    def on_retry(self, exc, task_id, args, kwargs, einfo):
-        print('on_retry called!')
-        print(exc, task_id, einfo, args, kwargs)
-
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
-        print('on_failure called!')
-        print(exc, task_id, einfo)
-        print('retry within 5 seconds!')
-        self.retry(kwargs={'err': False}, countdown=5)
-
-
-@shared_task(bind=True, base=CustomTask)
-def debug_task(self, err=False):
-    from time import sleep
-    sleep(1)
-    if err:
-        raise Exception('Something went wrong')
-    return 'debug_task done!'
-
-
-@shared_task
-def logging_task():
-    logger.info(logger.name)
-    logger.warning(logger.name)
-    logger.error(logger.name)
-    logger.critical(logger.name)
-    try:
-        raise Exception('An exception')
-    except Exception:
-        logger.exception(logger.name)

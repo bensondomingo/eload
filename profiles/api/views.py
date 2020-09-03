@@ -42,8 +42,7 @@ class CurrentUserAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, format=None):
-        obj = USER_MODEL.objects.get(username=self.request.user.username)
-        serializer = UserSerializer(instance=obj)
+        serializer = UserSerializer(instance=request.user)
         return Response(serializer.data)
 
 

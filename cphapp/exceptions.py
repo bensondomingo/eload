@@ -41,3 +41,14 @@ class OrderStatusError(Exception):
 
     def __str__(self):
         return (f'Order {self.eti} status not yet finalized: {self.status}')
+
+
+class CryptoPaymentThrottlingError(Exception):
+
+    def __init__(self, order_id, *args, **kwargs) -> None:
+        self.order_id = order_id
+        super().__init__(*args, **kwargs)
+
+    def __str__(self):
+        return ('HTTP_429_TOO_MANY_REQUESTS occured while fetching '
+                f'{self.order_id} crypto-payment data')

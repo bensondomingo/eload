@@ -9,7 +9,7 @@ from cphapp.test_assets import defines
 logger = logging.getLogger(__name__)
 
 
-@receiver(post_save, sender=LoadTransaction)
+# @receiver(post_save, sender=LoadTransaction)
 def post_eload_data(sender, instance, created, **kwargs):
     """
     Starts a worker that POSTs initial instance data to 3rd party enpoint. This
@@ -45,11 +45,12 @@ def post_eload_data(sender, instance, created, **kwargs):
 def update_payment_data(sender, instance, created, **kwargs):
     """ Purpose is to get running_balance and posted_amount value """
 
-    if instance.status in ['settled', 'refunded', 'expired'] \
+    if instance.status in ['settled', 'refunded', 'released'] \
             and instance.running_balance is None:
-        logger.debug('Fetch payment data for transaction %s', instance.id)
+        logger.info('Fetch payment data for transaction %s', instance.order_id)
+        # upd.apply(kwargs={'order_id': instance.order_id})
 
-        if instance.id.hex in defines.TEST_ORDER_IDS:
+        if instance.order_id in defines.TEST_ORDER_IDS:
             upd.apply(kwargs={'order_id': instance.order_id})
         else:
             upd.apply_async(kwargs={'order_id': instance.order_id})

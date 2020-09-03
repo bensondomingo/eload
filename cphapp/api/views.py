@@ -1,5 +1,10 @@
+from uuid import uuid4
+
 from django.db.models import Q
-from rest_framework import mixins, viewsets
+from django.http import QueryDict
+
+from rest_framework import serializers
+from rest_framework import mixins, status, viewsets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -9,13 +14,15 @@ from cphapp.models import LoadOutlet, LoadTransaction
 from cphapp.api.serializers import (
     LoadOutletSerializer, LoadTransactionSerializer)
 from cphapp.filters import TransactionsFilter
+from cphapp.tasks import request_new_order as rno
 from cphapp.utility import update_outlet_data
+from cphapp.test_assets import defines
 
 
 class TransactionAPIViewset(viewsets.GenericViewSet,
+                            mixins.ListModelMixin,
                             mixins.CreateModelMixin,
-                            mixins.RetrieveModelMixin,
-                            mixins.ListModelMixin):
+                            mixins.RetrieveModelMixin):
 
     serializer_class = LoadTransactionSerializer
     permission_classes = [IsAuthenticated]
@@ -29,14 +36,53 @@ class TransactionAPIViewset(viewsets.GenericViewSet,
 
         sellorders = super().get_queryset().filter(
             transaction_type='sellorder')
-        try:
-            device_hash = self.request.user.profile.user_agent.device_hash
-        except AttributeError:
-            return sellorders.filter(retailer=self.request.user)
+
+        retailer_device_list = self.request.user.profile.devices.all()
+        if not retailer_device_list.exists():
+            return sellorders.filter(retailer=self.request.user.profile)
+
+        return sellorders.filter(
+            Q(retailer=self.request.user.profile) |
+            Q(device__in=retailer_device_list))
+
+    def list(self, request, *args, **kwargs):
+        # sync_order_db('sellorder')
+        return super().list(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        raw_data = request.data
+        if isinstance(request.data, QueryDict):
+            raw_data = raw_data.copy()
+        raw_data.setdefault('id', uuid4().hex)
+
+        # Validation
+        s = LoadTransactionSerializer(data=raw_data)
+        if not s.is_valid():
+            raise serializers.ValidationError(detail=s.errors)
+
+        data = {
+            'amount': raw_data.get('amount'),
+            'currency': 'PHP',
+            'payment_outlet': raw_data.get('outlet_id'),
+            'pay_with_wallet': 'PBTC',
+            'phone_number_load': raw_data.get('phone_number'),
+            'external_transaction_id': raw_data.get('id'),
+            'reference': {
+                "retailer": request.user.username,
+                "retailer_email": request.user.email
+            }
+        }
+
+        transaction_id = data.get('external_transaction_id')
+
+        if transaction_id in defines.TEST_ORDER_IDS:
+            rno.apply(
+                kwargs={'transaction_id': transaction_id, 'data': data})
         else:
-            return sellorders.filter(
-                Q(retailer=self.request.user) |
-                Q(user_agent__device_hash=device_hash))
+            rno.apply_async(
+                kwargs={'transaction_id': transaction_id, 'data': data})
+
+        return Response(data=data, status=status.HTTP_201_CREATED)
 
 
 class ProductAPIView(APIView):
@@ -53,23 +99,3 @@ class ProductAPIView(APIView):
 
         s = LoadOutletSerializer(instance=outlet)
         return Response(s.data)
-
-    def post(self, request, *args, **kwargs):
-        pass
-
-
-# class LoadTransactionAPIViewset(viewsets.GenericViewSet,
-#                                 mixins.ListModelMixin,
-#                                 mixins.CreateModelMixin,
-#                                 mixins.RetrieveModelMixin,
-#                                 mixins.UpdateModelMixin,
-#                                 mixins.DestroyModelMixin):
-
-#     queryset = LoadTransaction.objects.all()
-#     serializer_class = LoadTransactionSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def get_queryset(self):
-#         if self.request.user.is_staff:
-#             return super().get_queryset()
-#         return super().get_queryset().filter(retailer=self.request.user)

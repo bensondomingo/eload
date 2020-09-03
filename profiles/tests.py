@@ -1,5 +1,3 @@
-from pprint import pprint
-
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.urls import reverse
@@ -8,7 +6,6 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
-from budgetplanner.models import CategoryType
 from profiles.api.serializers import ProfileSerializer, UserSerializer
 from profiles.models import Profile
 

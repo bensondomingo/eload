@@ -8,7 +8,8 @@ from rest_framework.test import APITestCase
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 
-from cphapp.models import LoadOutlet, LoadTransaction, UserAgent
+from cphapp.models import LoadOutlet, LoadTransaction, Device
+from cphapp.utility import sync_order_db
 from cphapp.test_assets import defines
 
 
@@ -30,10 +31,10 @@ class CphAppAPITestCase(APITestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        # Create UserAgent objects
-        ua_a = UserAgent.objects.create(
+        # Create Device objects
+        ua_a = Device.objects.create(
             device='test', platform='test', device_hash=defines.DEV_HASH_USERA)
-        ua_b = UserAgent.objects.create(
+        ua_b = Device.objects.create(
             device='test', platform='test', device_hash=defines.DEV_HASH_USERB)
 
         user_a = USER_MODEL.objects.create(**defines.USERA)
@@ -49,7 +50,7 @@ class CphAppAPITestCase(APITestCase):
 
     @classmethod
     def tearDownClass(cls) -> None:
-        UserAgent.objects.all().delete()
+        Device.objects.all().delete()
         USER_MODEL.objects.all().delete()
 
 
@@ -100,6 +101,8 @@ class LoadTransactionAPITestCase(CphAppAPITestCase):
         self._login_user(defines.USERA['username'])
         latc.client = self.client
         latc.add_new_outlet(defines.PHONE_NUMBER_GLOBE)
+        latc.add_new_outlet(defines.PHONE_NUMBER_SMART)
+        latc.add_new_outlet(defines.PHONE_NUMBER_SUN)
         return super().setUp()
 
     def test_create_transaction_no_auth(self):
@@ -148,8 +151,7 @@ class LoadTransactionAPITestCase(CphAppAPITestCase):
         response = self.client.post(endpoint, posted_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        obj_id = response.json().get('id')
-        obj = LoadTransaction.objects.get(id=obj_id)
+        obj = LoadTransaction.objects.get(id=posted_data.get('id'))
         self.assertEqual(obj.retailer.username, defines.USERA['username'])
         self.assertEqual(obj.id.hex, posted_data.get('id'))
         self.assertEqual(obj.amount, posted_data.get('amount'))
@@ -161,7 +163,7 @@ class LoadTransactionAPITestCase(CphAppAPITestCase):
         self.assertEqual(obj.status, 'settled')
         self.assertEqual(obj.transaction_type, 'sellorder')
         self.assertTrue(isinstance(obj.transaction_date, datetime))
-        self.assertTrue(obj.user_agent is not None)
+        self.assertTrue(obj.device is not None)
         self.assertTrue(obj.running_balance is not None)
         self.assertTrue(obj.posted_amount == -obj.amount)
 
@@ -174,5 +176,24 @@ class LoadTransactionAPITestCase(CphAppAPITestCase):
         resp = self.client.delete(endpoint)
         self.assertEqual(resp.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    def test_create_transaction_sync_initiated(self):
-        pass
+    def test_create_sellorder_transaction_sync_initiated(self):
+        # sellorders
+        sync_order_db('sellorder', test=True)
+        self.assertEqual(LoadTransaction.objects.filter(
+            transaction_type='sellorder').count(),
+            len(defines.TEST_SELL_ORDER_IDS))
+        for lt in LoadTransaction.objects.filter(transaction_type='sellorder'):
+            self.assertIn(lt.order_id, defines.TEST_SELL_ORDER_IDS)
+            if lt.status != 'expired':
+                self.assertTrue(lt.is_complete)
+
+    def test_create_buyorder_transaction_sync_initiated(self):
+        # buyorders
+        sync_order_db('buyorder', test=True)
+        self.assertEqual(LoadTransaction.objects.filter(
+            transaction_type='buyorder').count(),
+            len(defines.TEST_BUY_ORDER_IDS))
+        for lt in LoadTransaction.objects.filter(transaction_type='buyorder'):
+            self.assertIn(lt.order_id, defines.TEST_BUY_ORDER_IDS)
+            if lt.status != 'canceled':
+                self.assertTrue(lt.is_complete)
