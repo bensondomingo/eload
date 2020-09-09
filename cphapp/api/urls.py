@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from cphapp.api.views import ProductAPIView, TransactionAPIViewset
 
 router = DefaultRouter()
-router.register('transaction', TransactionAPIViewset, basename='transaction')
+router.register('transactions', TransactionAPIViewset, basename='transactions')
 
 urlpatterns = [
     path('', include(router.urls)),

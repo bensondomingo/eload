@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from profiles.models import Profile, SummaryCard
 from profiles.api.permissions import IsOwnProfileOrReadOnly
 from profiles.api.serializers import ProfileSerializer
-from profiles.api.serializers import ProfileAvatarSerializer
+# from profiles.api.serializers import ProfileAvatarSerializer
 from profiles.api.serializers import UserSerializer
 from profiles.api.serializers import SummaryCardSerializer
 
@@ -57,7 +57,7 @@ class ProfileAPIViewSet(viewsets.GenericViewSet,
     lookup_field = 'user__username'
 
     def get_queryset(self):
-        return super().get_queryset().exclude(user_agent=None)
+        return super().get_queryset().exclude(devices=None)
 
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)

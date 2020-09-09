@@ -39,7 +39,7 @@ class TransactionAPIViewset(viewsets.GenericViewSet,
 
         retailer_device_list = self.request.user.profile.devices.all()
         if not retailer_device_list.exists():
-            return sellorders.filter(retailer=self.request.user.profile)
+            return self.request.user.profile.load_transactions.all()
 
         return sellorders.filter(
             Q(retailer=self.request.user.profile) |

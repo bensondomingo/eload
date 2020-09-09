@@ -227,4 +227,4 @@ except ImportError:
     pass
 
 LOADNINJA_REWARD_TH = {
-    'limit': 10e3, 'reward_factor': 0.1, 'reward_factor_onwards': 0.05}
+    'limit': 2e3, 'reward_factor': 0.1, 'reward_factor_onwards': 0.05}

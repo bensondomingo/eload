@@ -1,17 +1,12 @@
+import os
 from uuid import uuid4
 from django.db import models
 from django.contrib.postgres.fields import ArrayField, JSONField
-from django.contrib.auth import get_user_model
 from django.utils.timezone import get_current_timezone
+from django.conf import settings
 
 from cphapp.utils import utc_to_local
 from profiles.models import Profile as Retailer
-
-USER_MODEL = get_user_model()
-
-
-def get_sentinel_user():
-    return USER_MODEL.objects.get_or_create(username='deleted')[0]
 
 
 class Device(models.Model):
@@ -78,6 +73,7 @@ class LoadTransaction(models.Model):
     posted_amount = models.FloatField(default=0, null=True, blank=True)
     running_balance = models.FloatField(null=True, blank=True)
     reward_amount = models.FloatField(default=0, null=True, blank=True)
+    top_up_amount = models.FloatField(default=0, null=True, blank=True)
     transaction_date = models.DateTimeField(null=True, blank=True)
 
     # sellorder
@@ -122,21 +118,6 @@ class LoadTransaction(models.Model):
 
         return sold_this_month if sold_this_month is not None else 0
 
-    # @property
-    # def reward_amount(self):
-    #     if self.status != 'settled' or self.transaction_type == 'buyorder':
-    #         return 0
-
-    #     sold_this_month = LoadTransaction.objects.filter(
-    #         status='settled',
-    #         transaction_date__month=self.transaction_date.month,
-    #         transaction_date__year=self.transaction_date.year).aggregate(
-    #             amount=models.Sum('amount')).get('amount')
-    #     if sold_this_month is None:
-    #         return 0
-    #     reward_factor = 0.1 if sold_this_month <= 10e3 else 0.05
-    #     return self.amount * reward_factor
-
     @property
     def balance(self):
         if self.running_balance is None:
@@ -149,3 +130,29 @@ class LoadTransaction(models.Model):
             return None
         outlet = LoadOutlet.objects.get(id=self.outlet_id)
         return outlet.name
+
+    def save(self, *args, **kwargs):
+        if self.transaction_type == 'sellorder' and self.status == 'settled':
+
+            # Set top_up_amount value
+            if self.retailer is not None:
+                # Use retailer settings
+                if self.top_up_amount == 0 \
+                        and self.amount < self.retailer.top_up_th:
+                    self.top_up_amount = self.retailer.top_up_amount
+            else:
+                # Apply defaults
+                if self.top_up_amount == 0 and self.amount < 100:
+                    self.top_up_amount = 2
+
+            # Set reward_amount value
+            if self.running_balance is not None and self.reward_amount == 0:
+                reward_th = os.getenv('LOADNINJA_REWARD_TH',
+                                      settings.LOADNINJA_REWARD_TH)
+                reward_factor = reward_th['reward_factor'] \
+                    if self.sold_this_month <= reward_th['limit'] \
+                    else reward_th['reward_factor_onwards']
+                self.reward_amount = self.amount * reward_factor
+                self.running_balance += self.reward_amount
+
+        super().save(*args, **kwargs)

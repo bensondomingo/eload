@@ -1,8 +1,13 @@
+
+import json
+import os
 import urllib
 from datetime import datetime
 
 from django.urls import reverse
+from django.db.models import Q
 from django.contrib.auth import get_user_model
+from django.conf import settings
 
 from rest_framework.test import APITestCase
 from rest_framework import status
@@ -10,7 +15,7 @@ from rest_framework.authtoken.models import Token
 
 from cphapp.models import LoadOutlet, LoadTransaction, Device
 from cphapp.utility import sync_order_db
-from cphapp.test_assets import defines
+from cphapp.test_assets import defines, json_file_path
 
 
 USER_MODEL = get_user_model()
@@ -41,10 +46,8 @@ class CphAppAPITestCase(APITestCase):
         user_b = USER_MODEL.objects.create(**defines.USERB)
         USER_MODEL.objects.create(**defines.USERC)
 
-        user_a.profile.user_agent = ua_a
-        user_a.profile.save()
-        user_b.profile.user_agent = ua_b
-        user_b.profile.save()
+        user_a.profile.devices.add(ua_a)
+        user_b.profile.devices.add(ua_b)
 
         super().setUpClass()
 
@@ -187,6 +190,19 @@ class LoadTransactionAPITestCase(CphAppAPITestCase):
             if lt.status != 'expired':
                 self.assertTrue(lt.is_complete)
 
+        num_orders_with_device_hash = 0
+        for file in json_file_path.SELL_ORDER_LIST:
+            with open(file, 'r') as f:
+                orders = json.load(f).get('orders')
+            n = [order for order in orders if order.get(
+                'user_agent').get('device_hash') is not None]
+            num_orders_with_device_hash += len(n)
+
+        n = LoadTransaction.objects.filter(
+            ~Q(retailer=None), transaction_type='sellorder')
+        print(n.count(), num_orders_with_device_hash)
+        self.assertEqual(n.count(), num_orders_with_device_hash)
+
     def test_create_buyorder_transaction_sync_initiated(self):
         # buyorders
         sync_order_db('buyorder', test=True)
@@ -197,3 +213,22 @@ class LoadTransactionAPITestCase(CphAppAPITestCase):
             self.assertIn(lt.order_id, defines.TEST_BUY_ORDER_IDS)
             if lt.status != 'canceled':
                 self.assertTrue(lt.is_complete)
+
+    def test_property_sold_this_month(self):
+        endpoint = reverse(self.list_endpoint)
+        posted_data = {
+            'id': defines.ORDER_TEST_ID,
+            'amount': 5,
+            'phone_number': defines.PHONE_NUMBER_GLOBE,
+            'outlet_id': 'load-globe',
+        }
+
+        response = self.client.post(endpoint, posted_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        reward_th = os.getenv('LOAD_NINJA_REWARD_TH',
+                              settings.LOADNINJA_REWARD_TH)
+
+        obj1 = LoadTransaction.objects.get(pk=defines.ORDER_TEST_ID)
+        self.assertEqual(obj1.sold_this_month, 5)
+        self.assertEqual(obj1.reward_amount, 5 *
+                         reward_th.get('reward_factor'))

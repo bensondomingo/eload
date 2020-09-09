@@ -8,6 +8,8 @@ class Profile(models.Model):
         USER_MODEL, on_delete=models.CASCADE, null=True)
     bio = models.CharField(max_length=150, null=True)
     avatar = models.ImageField(null=True, blank=True)
+    top_up_amount = models.FloatField(default=2, null=True, blank=True)
+    top_up_th = models.FloatField(default=100, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

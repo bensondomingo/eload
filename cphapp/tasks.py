@@ -1,11 +1,9 @@
 from __future__ import absolute_import, unicode_literals
-import os
 import json
 import logging
 from requests.exceptions import ConnectionError
 
 from django.contrib.auth import get_user_model
-from django.conf import settings
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 
@@ -40,7 +38,6 @@ class RequestNewOrderTask(Task):
         transaction_id = kwargs.get('transaction_id')
         retval.update({
             'transaction_id': transaction_id,
-            # 'retailer': retailer_id,
             'transaction_type': 'sellorder'})
 
         s = LoadTransactionSerializer(data=retval)
@@ -145,15 +142,6 @@ class UpdatePaymentTask(Task):
         order_status = kwargs.get('order_status')
         if order_status is not None:
             retval.update({'status': order_status})
-
-        # Calculate reward_amount
-        if obj.transaction_type == 'sellorder':
-            reward_th = os.getenv('LOAD_NINJA_REWARD_TH',
-                                  settings.LOADNINJA_REWARD_TH)
-            reward_factor = reward_th['reward_factor'] \
-                if obj.sold_this_month <= reward_th['limit'] \
-                else reward_th['reward_factor_onwards']
-            retval['reward_amount'] = obj.amount * reward_factor
 
         s = LoadTransactionSerializer(obj, data=retval, partial=True)
         if not s.is_valid():

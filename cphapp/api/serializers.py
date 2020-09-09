@@ -106,17 +106,29 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
         return user_agent
 
     @staticmethod
-    def get_retailer(reference_field):
-        if not reference_field:
-            return None
+    def get_retailer(data):
 
-        retailer_username = reference_field.get('retailer')
+        if data.get('reference'):
+            # Transactions made using the frontend app includes a reference
+            # field containing the retailers username and email
+            reference_field = data.get('reference')
+            retailer_username = reference_field.get('retailer')  # username
+            try:
+                retailer = Retailer.objects.get(
+                    user__username=retailer_username)
+            except Retailer.DoesNotExist:
+                return None
+            else:
+                return retailer.id
+
+        # Use user_agent.device to determine the retailer
+        device_hash = data.get('user_agent').get('device_hash')
         try:
-            retailer = Retailer.objects.get(user__username=retailer_username)
-        except Retailer.DoesNotExist:
+            device = Device.objects.get(device_hash=device_hash)
+        except Device.DoesNotExist:
             return None
         else:
-            return retailer.id
+            return device.owner.id if device.owner is not None else None
 
     @staticmethod
     def order_to_transactions_map(data):
@@ -126,7 +138,6 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
             'outlet_id': data.get('payment_outlet_id'),
             'confirmation_code': data.get('confirmation_code'),
             'account': data.get('user_id'),
-            # 'user_agent': data.get('user_agent'),
             'transaction_type': data.get('transaction_type'),
             'status': data.get('delivery_status') or data.get('status'),
             'amount': data.get('amount') or data.get('subtotal'),
@@ -135,20 +146,17 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
                 int(data.get('created_time')),
                 pytz.timezone(settings.TIME_ZONE)).isoformat(),
             'running_balance': data.get('running_balance'),
-            'posted_amount': data.get('posted_amount')
+            'posted_amount': data.get('posted_amount'),
+            'device': LoadTransactionSerializer.get_user_agent(
+                data.get('user_agent')).id
         }
         if data.get('transaction_type') == 'sellorder':
             parsed.update({
                 'phone_number': data.get('phone_number_load'),
-                'retailer': LoadTransactionSerializer.get_retailer(
-                    data.get('reference'))
-                # 'retailer': data.get('retailer'),
+                'retailer': LoadTransactionSerializer.get_retailer(data)
             })
         else:
             parsed['payment_method'] = data.get('payment_outlet_id')
-
-        parsed['device'] = LoadTransactionSerializer.get_user_agent(
-            data.get('user_agent')).id
 
         return parsed
 

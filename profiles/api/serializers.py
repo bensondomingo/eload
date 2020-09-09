@@ -1,3 +1,4 @@
+from cphapp.models import Device
 from rest_framework import serializers
 
 from profiles.models import Profile, SummaryCard
@@ -15,16 +16,26 @@ class SummaryCardSerializer(serializers.ModelSerializer):
         fields = ['name', 'color', 'is_dark', 'retailer', 'title']
 
 
+class DeviceHashSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Device
+        fields = ['device_hash']
+
+
 class ProfileSerializer(serializers.ModelSerializer):
 
     user = serializers.StringRelatedField(read_only=True)
     avatar = serializers.ImageField(read_only=True)
-    device_hash = serializers.CharField(source='user_agent.device_hash')
+    devices = serializers.SerializerMethodField()
     cards = SummaryCardSerializer(many=True, read_only=True)
 
     class Meta:
         model = Profile
         fields = '__all__'
+
+    def get_devices(self, instance):
+        return [device.device_hash for device in instance.devices.all()]
 
 
 class ProfileAvatarSerializer(serializers.ModelSerializer):
