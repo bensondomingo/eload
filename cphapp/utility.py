@@ -100,7 +100,11 @@ def update_outlet_data(phone_number):
         raise serializers.ValidationError(resp.json())
 
     resp = resp.json()
-    payout_outlet = resp.get('payout-outlets')[0]
+    try:
+        payout_outlet = resp.get('payout-outlets')[0]
+    except IndexError:
+        raise serializers.ValidationError('Number is not supported')
+
     outlet_id = payout_outlet.get('id')
     try:
         outlet = LoadOutlet.objects.get(id=outlet_id)

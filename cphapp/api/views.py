@@ -53,6 +53,7 @@ class TransactionAPIViewset(viewsets.GenericViewSet,
         raw_data = request.data
         if isinstance(request.data, QueryDict):
             raw_data = raw_data.copy()
+        # Add an id if none is provided on the request data
         raw_data.setdefault('id', uuid4().hex)
 
         # Validation
@@ -60,6 +61,7 @@ class TransactionAPIViewset(viewsets.GenericViewSet,
         if not s.is_valid():
             raise serializers.ValidationError(detail=s.errors)
 
+        # Format data
         data = {
             'amount': raw_data.get('amount'),
             'currency': 'PHP',
