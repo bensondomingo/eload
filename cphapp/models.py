@@ -101,6 +101,41 @@ class LoadTransaction(models.Model):
         return (f'{self.confirmation_code} - {transaction_date} - '
                 f'{self.transaction_type} - {self.amount}')
 
+    @classmethod
+    def update_rewards(cls, month=None, year=None, rth=None):
+        if month is None and year is None:
+            transactions = cls.objects.filter(status='settled')
+        else:
+            transactions = cls.objects.filter(status='settled',
+                                              transaction_date__month=month,
+                                              transaction_date__year=year)
+        if rth is not None:
+            reward_th = rth
+        else:
+            reward_th = os.getenv('LOADNINJA_REWARD_TH',
+                                  settings.LOADNINJA_REWARD_TH)
+
+        for transaction in transactions.reverse():
+            transaction.update_reward(reward_th)
+
+    def update_reward(self, rth=None):
+        # Set reward_amount value
+        if not self.is_complete:
+            # raise an exception
+            pass
+
+        if rth is not None:
+            reward_th = rth
+        else:
+            reward_th = os.getenv('LOADNINJA_REWARD_TH',
+                                  settings.LOADNINJA_REWARD_TH)
+        reward_factor = reward_th['reward_factor'] \
+            if (self.sold_this_month - self.amount) <= reward_th['limit'] \
+            else reward_th['reward_factor_onwards']
+        self.reward_amount = self.amount * reward_factor
+        # Skip reward_amount update on save (a little bit hacky, fix this itf)
+        self.save(skip_reward_update=True)
+
     @property
     def is_complete(self):
         return self.running_balance is not None
@@ -120,7 +155,7 @@ class LoadTransaction(models.Model):
 
     @property
     def balance(self):
-        if self.running_balance is None:
+        if not self.is_complete:
             return None
         return self.running_balance + self.reward_amount
 
@@ -128,12 +163,15 @@ class LoadTransaction(models.Model):
     def network(self):
         if self.transaction_type != 'sellorder':
             return None
-        outlet = LoadOutlet.objects.get(id=self.outlet_id)
-        return outlet.name
+        try:
+            outlet = LoadOutlet.objects.get(id=self.outlet_id)
+        except LoadOutlet.DoesNotExist:
+            return ''
+        else:
+            return outlet.name
 
     def save(self, *args, **kwargs):
         if self.transaction_type == 'sellorder' and self.status == 'settled':
-
             # Set top_up_amount value
             if self.retailer is not None:
                 # Use retailer settings
@@ -146,13 +184,17 @@ class LoadTransaction(models.Model):
                     self.top_up_amount = 2
 
             # Set reward_amount value
-            if self.running_balance is not None and self.reward_amount == 0:
-                reward_th = os.getenv('LOADNINJA_REWARD_TH',
-                                      settings.LOADNINJA_REWARD_TH)
-                reward_factor = reward_th['reward_factor'] \
-                    if self.sold_this_month <= reward_th['limit'] \
-                    else reward_th['reward_factor_onwards']
-                self.reward_amount = self.amount * reward_factor
-                self.running_balance += self.reward_amount
+            try:
+                kwargs.pop('skip_reward_update')
+            except KeyError:
+                pass
+            else:
+                if self.running_balance is not None:
+                    reward_th = os.getenv('LOADNINJA_REWARD_TH',
+                                          settings.LOADNINJA_REWARD_TH)
+                    reward_factor = reward_th['reward_factor'] \
+                        if self.sold_this_month <= reward_th['limit'] \
+                        else reward_th['reward_factor_onwards']
+                    self.reward_amount = self.amount * reward_factor
 
         super().save(*args, **kwargs)

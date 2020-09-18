@@ -66,6 +66,7 @@ class TransactionSerializer(serializers.ModelSerializer):
 
 class LoadTransactionSerializer(serializers.ModelSerializer):
     sold_this_month = serializers.SerializerMethodField()
+    balance = serializers.SerializerMethodField()
     network = serializers.SerializerMethodField()
     device_hash = serializers.CharField(
         source='device.device_hash', read_only=True)
@@ -152,7 +153,8 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
         }
         if data.get('transaction_type') == 'sellorder':
             parsed.update({
-                'phone_number': data.get('phone_number_load'),
+                'phone_number': data.get('phone_number_load',
+                                         data.get('gaming_pin_mobile_number')),
                 'retailer': LoadTransactionSerializer.get_retailer(data)
             })
         else:
@@ -163,8 +165,8 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
     def get_sold_this_month(self, instance):
         return instance.sold_this_month
 
-    def get_reward_amount(self, instance):
-        return instance.reward_amount
+    def get_balance(self, instance):
+        return instance.balance
 
     def get_network(self, instance):
         return instance.network

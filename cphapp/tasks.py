@@ -106,6 +106,7 @@ class UpdateOrderDataTask(Task):
 @shared_task(
     bind=True, base=UpdateOrderDataTask,
     autoretry_for=(Exception, ),
+    retry_kwargs={'max_retries': None},
     retry_backoff=True)
 def update_order_data(self, id):
     if id in defines.TEST_ORDER_IDS:
@@ -157,6 +158,7 @@ class UpdatePaymentTask(Task):
 
 @shared_task(bind=True, base=UpdatePaymentTask,
              autoretry_for=(Exception,),
+             retry_kwargs={'max_retries': None},
              retry_backoff=True)
 def update_payment_data(self, order_id, order_status=None):
     try:
