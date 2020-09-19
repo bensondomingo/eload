@@ -192,3 +192,7 @@ migrations/
 migrations/*
 
 logs/
+
+cphapp/test_assets
+
+redis/

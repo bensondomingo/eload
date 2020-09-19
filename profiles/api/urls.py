@@ -3,7 +3,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from profiles.api.views import (UserAPIViewSet, ProfileAPIViewSet,
-                                ProfileListAPIView, ProfileRUAPIView,
+                                # ProfileListAPIView, ProfileRUAPIView,
                                 SummaryCardAPIViewSet, CurrentUserAPIView)
 
 router = DefaultRouter()

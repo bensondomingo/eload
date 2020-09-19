@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from django_filters import rest_framework as filters
-from cphapp.models import Transaction
+from cphapp.models import LoadTransaction
 
 
 date_range_map = {
@@ -33,7 +33,7 @@ class TransactionsFilter(filters.FilterSet):
         return queryset.filter(transaction_date__lte=dt)
 
     class Meta:
-        model = Transaction
+        model = LoadTransaction
         fields = {
             'transaction_date': ['year', 'month', 'day'],
         }

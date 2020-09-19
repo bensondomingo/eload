@@ -1,89 +1,202 @@
+import pytz
 from datetime import datetime
 
+from django.shortcuts import get_object_or_404
+from django.conf import settings
 from rest_framework import serializers
 from rest_framework.fields import empty
 
-from cphapp.models import Transaction
-from cphapp.models import UserAgent
+from uuid import uuid4
+
+from cphapp.models import (LoadOutlet, LoadTransaction, Device)
+from cphapp.exceptions import LoadAmountError
+
+from profiles.models import Profile as Retailer
+
+
+class LoadOutletSerializer(serializers.ModelSerializer):
+    phone_number_prefixes = serializers.ListField(read_only=True)
+
+    class Meta:
+        model = LoadOutlet
+        fields = '__all__'
 
 
 class UserAgentSerializer(serializers.ModelSerializer):
 
     class Meta:
-        model = UserAgent
+        model = Device
         fields = '__all__'
 
 
 class TransactionSerializer(serializers.ModelSerializer):
-    user_agent = UserAgentSerializer()
+    phone_number = serializers.CharField(max_length=13, min_length=13)
+    sold_this_month = serializers.SerializerMethodField()
+    reward_amount = serializers.SerializerMethodField()
+    network = serializers.SerializerMethodField()
 
     class Meta:
-        model = Transaction
+        model = LoadTransaction
+        fields = '__all__'
+
+    @staticmethod
+    def get_user_agent(ua_dict):
+        ua_query = 'device_hash' if ua_dict.get('device_hash') else 'browser'
+        query_dict = {ua_query: ua_dict.get(ua_query)}
+
+        try:
+            user_agent = Device.objects.get(**query_dict)
+        except Device.DoesNotExist:
+            serializer = UserAgentSerializer(data=ua_dict)
+            if not serializer.is_valid():
+                # Need to call is_valid() before deserialization
+                pass
+            user_agent = serializer.create(serializer.validated_data)
+        return user_agent
+
+    def get_sold_this_month(self, instance):
+        return instance.sold_this_month
+
+    def get_reward_amount(self, instance):
+        return instance.reward_amount
+
+    def get_network(self, instance):
+        return instance.network
+
+
+class LoadTransactionSerializer(serializers.ModelSerializer):
+    sold_this_month = serializers.SerializerMethodField()
+    running_balance = serializers.SerializerMethodField()
+    network = serializers.SerializerMethodField()
+    device_hash = serializers.CharField(
+        source='device.device_hash', read_only=True)
+
+    class Meta:
+        model = LoadTransaction
         fields = '__all__'
 
     def __init__(self, instance=None, data=empty, **kwargs):
-        if data != empty and not kwargs.get('partial'):
-            data = TransactionDetailSerializer.order_to_transactions_map(data)
+        '''
+        POST request data contains value for required fields only. Optional
+        fields are filled later by a worker.
+        '''
+
+        if data is not empty:
+            if data.get('confirmation_code', False):
+                # Having confirmation_code means the data came from a response
+                data = LoadTransactionSerializer.order_to_transactions_map(
+                    data)
+
         super().__init__(instance=instance, data=data, **kwargs)
+
+    @staticmethod
+    def get_user_agent(ua_dict):
+        # Update will be performed by worker that polls the sellorder
+        ua_query = 'device_hash' if ua_dict.get(
+            'device_hash') else 'user_agent'
+        query_dict = {ua_query: ua_dict.get(ua_query)}
+
+        try:
+            user_agent = Device.objects.get(**query_dict)
+        except Device.DoesNotExist:
+            serializer = UserAgentSerializer(data=ua_dict)
+            if not serializer.is_valid():
+                # Need to call is_valid() before deserialization
+                pass
+            user_agent = serializer.create(serializer.validated_data)
+        return user_agent
+
+    @staticmethod
+    def get_retailer(data):
+
+        if data.get('reference'):
+            # Transactions made using the frontend app includes a reference
+            # field containing the retailers username and email
+            reference_field = data.get('reference')
+            retailer_username = reference_field.get('retailer')  # username
+            try:
+                retailer = Retailer.objects.get(
+                    user__username=retailer_username)
+            except Retailer.DoesNotExist:
+                return None
+            else:
+                return retailer.id
+
+        # Use user_agent.device to determine the retailer
+        device_hash = data.get('user_agent').get('device_hash')
+        try:
+            device = Device.objects.get(device_hash=device_hash)
+        except Device.DoesNotExist:
+            return None
+        else:
+            return device.owner.id if device.owner is not None else None
 
     @staticmethod
     def order_to_transactions_map(data):
         parsed = {
-            'id': data.get('id'),
+            'id': data.get('transaction_id', uuid4().hex),
+            'order_id': data.get('id'),
+            'outlet_id': data.get('payment_outlet_id'),
             'confirmation_code': data.get('confirmation_code'),
             'account': data.get('user_id'),
-            'user_agent': data.get('user_agent'),
             'transaction_type': data.get('transaction_type'),
             'status': data.get('delivery_status') or data.get('status'),
             'amount': data.get('amount') or data.get('subtotal'),
-            'fee': data.get('currency_fees') or data.get('coins_fee'),
+            'product_code': data.get('product_code', 'regular'),
             'transaction_date': datetime.fromtimestamp(
-                int(data.get('created_time'))).isoformat(),
+                int(data.get('created_time')),
+                pytz.timezone(settings.TIME_ZONE)).isoformat(),
+            'balance': data.get('running_balance'),
+            'posted_amount': data.get('posted_amount'),
+            'device': LoadTransactionSerializer.get_user_agent(
+                data.get('user_agent')).id
         }
         if data.get('transaction_type') == 'sellorder':
             parsed.update({
-                'phone_number': data.get('phone_number_load'),
-                'network': data.get('payment_outlet_name')
+                'phone_number': data.get('phone_number_load',
+                                         data.get('gaming_pin_mobile_number')),
+                'retailer': LoadTransactionSerializer.get_retailer(data)
             })
         else:
             parsed['payment_method'] = data.get('payment_outlet_id')
 
         return parsed
 
-    def create(self, validated_data):
-        # Use user_agent to bind this transaction to a retailer
-        ua_dict = self.initial_data.get('user_agent')
-        ua_query = 'device_hash' if ua_dict.get('device_hash') else 'browser'
-        query_dict = {ua_query: ua_dict.get(ua_query)}
+    def get_sold_this_month(self, instance):
+        return instance.sold_this_month
 
-        try:
-            user_agent = UserAgent.objects.get(**query_dict)
-        except UserAgent.DoesNotExist:
-            serializer = UserAgentSerializer(
-                data=self.initial_data.get('user_agent'))
-            if not serializer.is_valid():
-                pass
-            user_agent = serializer.create(serializer.validated_data)
-        finally:
-            validated_data['user_agent'] = user_agent
+    def get_running_balance(self, instance):
+        return instance.running_balance
 
-        status = validated_data.get('status')
-        if status == 'expired' or status == 'canceled':
-            return super().create(validated_data)
+    def get_network(self, instance):
+        return instance.network
 
-        return super().create(validated_data)
+    def validate_phone_number(self, value):
+        if len(value) != 13:
+            raise serializers.ValidationError(
+                'Phone number should be 13 characters')
+        return value
 
+    def validate(self, attrs):
+        """ Validate Load amount based on outlet's valid amount range """
 
-class TransactionDetailSerializer(TransactionSerializer):
-    phone_number = serializers.CharField(source='loadorder.phone_number')
-    network = serializers.CharField(source='loadorder.network')
+        if 'balance' in attrs and 'posted_amount' in attrs:
+            # Skip amount validation during crypto-payment update
+            return super().validate(attrs)
 
-    class Meta(TransactionSerializer.Meta):
-        fields = '__all__'
-
-    def __init__(self, instance, *args, **kwargs):
-        super(TransactionDetailSerializer, self).__init__(
-            instance, *args, **kwargs)
-        if instance.transaction_type == 'buy_order':
-            self.fields.pop('phone_number')
-            self.fields.pop('network')
+        if 'confirmation_code' not in attrs:
+            # Perform this validation only during retailer initiated buy
+            amount = attrs.get('amount')
+            outlet = get_object_or_404(
+                LoadOutlet, id=attrs.get('outlet_id'))
+            # outlet = LoadOutlet.objects.get(id=attrs.get('outlet_id'))
+            limits = next(filter(lambda o: o.get('currency') == 'PHP',
+                                 outlet.amount_limits))
+            mn = limits.get('minimum')
+            mx = limits.get('maximum')
+            try:
+                assert(mn <= amount and amount <= mx)
+            except AssertionError:
+                err = LoadAmountError(amount, mn, mx)
+                raise serializers.ValidationError(detail=err)
+        return super().validate(attrs)
