@@ -89,7 +89,7 @@ class LoadTransactionAPITestCase(CphAppAPITestCase):
     def setUpClass(cls) -> None:
         """
         Since post_save handlers are async, actual process was mocked with
-        synchrounous to perform test properly. i.e how can you call
+        synchronous to perform test properly. i.e how can you call
         self.assertEqual if the instance is being update by another task?
         """
         # post_save.disconnect(post_eload_data, LoadTransaction)

@@ -59,7 +59,7 @@ class RequestNewOrderTask(Task):
             error = ', '.join(exc.errors)
         else:
             error = exc.__str__()
-        logger.error('An error occured %s: %s', transaction_id, error)
+        logger.error('An error occurred %s: %s', transaction_id, error)
         obj = LoadTransaction.objects.get(id=transaction_id)
         obj.error = error
         obj.save()
@@ -177,7 +177,7 @@ def update_payment_data(self, order_id, order_status=None):
                          order_id)
         raise e
     except Exception as e:
-        logger.exception('An unknown error has occured while fetching '
+        logger.exception('An unknown error has occurred while fetching '
                          'payment data of transaction %s', order_id)
         raise e
 
