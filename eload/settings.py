@@ -26,7 +26,7 @@ SECRET_KEY = '@21qd)&g%d)^!*0)31f%l89uu8g_lkp$pd*@6^4#r63i-0@0o8'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '192.168.137.1', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '192.168.137.1', '127.0.0.1', '188.166.177.215']
 
 
 # Application definition
@@ -96,7 +96,7 @@ DATABASES = {
         'USER': 'bdomingo',
         'PASSWORD': '1234',
         'HOST': 'localhost',
-        'PORT': '5433',
+        'PORT': '',
     }
 }
 
