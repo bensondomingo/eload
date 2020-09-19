@@ -24,13 +24,17 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = '@21qd)&g%d)^!*0)31f%l89uu8g_lkp$pd*@6^4#r63i-0@0o8'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+try:
+    DEBUG = eval(os.getenv('DJANGO_DEBUG'))
+except Exception:
+    DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '192.168.137.1', '127.0.0.1', '188.166.177.215']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+if os.getenv('DJANGO_HOST'):
+    ALLOWED_HOSTS.append(os.getenv('DJANGO_HOST'))
 
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -78,16 +82,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'eload.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/2.2/ref/settings/#databases
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-#     }
-# }
 
 DATABASES = {
     'default': {
@@ -228,3 +222,10 @@ except ImportError:
 
 LOADNINJA_REWARD_TH = {
     'limit': 2e3, 'reward_factor': 0.1, 'reward_factor_onwards': 0.05}
+
+# import production settings
+if not DEBUG:
+    try:
+        from eload.deployment_settings import *
+    except ImportError:
+        pass

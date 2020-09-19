@@ -196,3 +196,5 @@ logs/
 cphapp/test_assets
 
 redis/
+
+eload/deployment_settings.py
