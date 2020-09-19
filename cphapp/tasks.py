@@ -33,6 +33,8 @@ USER_MODEL = get_user_model()
 
 class RequestNewOrderTask(Task):
 
+    max_retries = None
+
     def on_success(self, retval, task_id, args, kwargs):
         # Start update_order_data task
         transaction_id = kwargs.get('transaction_id')
@@ -67,8 +69,8 @@ class RequestNewOrderTask(Task):
 @shared_task(
     bind=True, base=RequestNewOrderTask,
     autoretry_for=(ConnectionError,),
-    retry_kwargs={'max_retries': 10},
-    retry_backoff=True)
+    retry_backoff=True,
+    retry_jitter=True)
 def request_new_order(self, transaction_id, data):
     """
     Fire a new POST request to 3rd party endpoint initiating buy of load.
@@ -90,6 +92,8 @@ def request_new_order(self, transaction_id, data):
 
 class UpdateOrderDataTask(Task):
 
+    max_retries = None
+
     def on_success(self, retval, task_id, args, kwargs):
         # retval['model_id'] = kwargs.get('id')
         AsyncResult(id=task_id).forget()
@@ -99,15 +103,12 @@ class UpdateOrderDataTask(Task):
             kwargs={'order_id': retval.get('id'),
                     'order_status': order_status})
 
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
-        return super().on_failure(exc, task_id, args, kwargs, einfo)
-
 
 @shared_task(
     bind=True, base=UpdateOrderDataTask,
     autoretry_for=(Exception, ),
-    retry_kwargs={'max_retries': None},
-    retry_backoff=True)
+    retry_backoff=True,
+    retry_jitter=True)
 def update_order_data(self, id):
     if id in defines.TEST_ORDER_IDS:
         logger.info('update_order_data in TEST mode, using %s',
@@ -130,6 +131,8 @@ def update_order_data(self, id):
 
 
 class UpdatePaymentTask(Task):
+
+    max_retries = None
 
     def on_success(self, retval, task_id, args, kwargs):
         order_id = kwargs.get('order_id')
@@ -156,10 +159,11 @@ class UpdatePaymentTask(Task):
         logger.info('Task %s succeeded', self.request.id)
 
 
-@shared_task(bind=True, base=UpdatePaymentTask,
-             autoretry_for=(Exception,),
-             retry_kwargs={'max_retries': None},
-             retry_backoff=True)
+@shared_task(
+    bind=True, base=UpdatePaymentTask,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True)
 def update_payment_data(self, order_id, order_status=None):
     try:
         response = fetch_crypto_payment(order_id)
@@ -186,7 +190,7 @@ def update_payment_data(self, order_id, order_status=None):
 
     return {
         'posted_amount': payment.get('posted_amount'),
-        'running_balance': payment.get('running_balance')
+        'balance': payment.get('running_balance')
     }
 
 

@@ -43,10 +43,10 @@ def post_eload_data(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=LoadTransaction)
 def update_payment_data(sender, instance, created, **kwargs):
-    """ Purpose is to get running_balance and posted_amount value """
+    """ Purpose is to get balance and posted_amount value """
 
     if instance.status in ['settled', 'refunded', 'released'] \
-            and instance.running_balance is None:
+            and instance.balance is None:
         logger.info('Fetch payment data for transaction %s', instance.order_id)
         # upd.apply(kwargs={'order_id': instance.order_id})
 

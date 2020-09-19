@@ -23,8 +23,8 @@ USER_MODEL = get_user_model()
 
 class CphAppAPITestCase(APITestCase):
     buy_product_endpoint = 'buy-product'
-    list_endpoint = 'transaction-list'
-    detail_endpoint = 'transaction-detail'
+    list_endpoint = 'transactions-list'
+    detail_endpoint = 'transactions-detail'
 
     def _login_user(self, username):
         user = USER_MODEL.objects.get(username=username)
@@ -167,7 +167,7 @@ class LoadTransactionAPITestCase(CphAppAPITestCase):
         self.assertEqual(obj.transaction_type, 'sellorder')
         self.assertTrue(isinstance(obj.transaction_date, datetime))
         self.assertTrue(obj.device is not None)
-        self.assertTrue(obj.running_balance is not None)
+        self.assertTrue(obj.balance is not None)
         self.assertTrue(obj.posted_amount == -obj.amount)
 
         # Test retrieve endpoint

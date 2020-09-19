@@ -71,7 +71,7 @@ class LoadTransaction(models.Model):
     amount = models.FloatField()
 
     posted_amount = models.FloatField(default=0, null=True, blank=True)
-    running_balance = models.FloatField(null=True, blank=True)
+    balance = models.FloatField(null=True, blank=True)
     reward_amount = models.FloatField(default=0, null=True, blank=True)
     top_up_amount = models.FloatField(default=0, null=True, blank=True)
     transaction_date = models.DateTimeField(null=True, blank=True)
@@ -138,7 +138,7 @@ class LoadTransaction(models.Model):
 
     @property
     def is_complete(self):
-        return self.running_balance is not None
+        return self.balance is not None
 
     @property
     def sold_this_month(self):
@@ -154,10 +154,10 @@ class LoadTransaction(models.Model):
         return sold_this_month if sold_this_month is not None else 0
 
     @property
-    def balance(self):
+    def running_balance(self):
         if not self.is_complete:
             return None
-        return self.running_balance + self.reward_amount
+        return self.balance + self.reward_amount
 
     @property
     def network(self):
@@ -187,13 +187,12 @@ class LoadTransaction(models.Model):
             try:
                 kwargs.pop('skip_reward_update')
             except KeyError:
-                pass
-            else:
-                if self.running_balance is not None:
+                if self.is_complete:
                     reward_th = os.getenv('LOADNINJA_REWARD_TH',
                                           settings.LOADNINJA_REWARD_TH)
+                    sold = self.sold_this_month - self.amount
                     reward_factor = reward_th['reward_factor'] \
-                        if self.sold_this_month <= reward_th['limit'] \
+                        if sold <= reward_th['limit'] \
                         else reward_th['reward_factor_onwards']
                     self.reward_amount = self.amount * reward_factor
 

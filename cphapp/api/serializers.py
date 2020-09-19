@@ -66,7 +66,7 @@ class TransactionSerializer(serializers.ModelSerializer):
 
 class LoadTransactionSerializer(serializers.ModelSerializer):
     sold_this_month = serializers.SerializerMethodField()
-    balance = serializers.SerializerMethodField()
+    running_balance = serializers.SerializerMethodField()
     network = serializers.SerializerMethodField()
     device_hash = serializers.CharField(
         source='device.device_hash', read_only=True)
@@ -146,7 +146,7 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
             'transaction_date': datetime.fromtimestamp(
                 int(data.get('created_time')),
                 pytz.timezone(settings.TIME_ZONE)).isoformat(),
-            'running_balance': data.get('running_balance'),
+            'balance': data.get('running_balance'),
             'posted_amount': data.get('posted_amount'),
             'device': LoadTransactionSerializer.get_user_agent(
                 data.get('user_agent')).id
@@ -165,8 +165,8 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
     def get_sold_this_month(self, instance):
         return instance.sold_this_month
 
-    def get_balance(self, instance):
-        return instance.balance
+    def get_running_balance(self, instance):
+        return instance.running_balance
 
     def get_network(self, instance):
         return instance.network
@@ -180,7 +180,7 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         """ Validate Load amount based on outlet's valid amount range """
 
-        if 'running_balance' in attrs and 'posted_amount' in attrs:
+        if 'balance' in attrs and 'posted_amount' in attrs:
             # Skip amount validation during crypto-payment update
             return super().validate(attrs)
 
