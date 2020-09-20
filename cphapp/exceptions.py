@@ -50,5 +50,5 @@ class CryptoPaymentThrottlingError(Exception):
         super().__init__(*args, **kwargs)
 
     def __str__(self):
-        return ('HTTP_429_TOO_MANY_REQUESTS occured while fetching '
+        return ('HTTP_429_TOO_MANY_REQUESTS occurred while fetching '
                 f'{self.order_id} crypto-payment data')

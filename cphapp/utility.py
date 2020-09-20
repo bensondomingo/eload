@@ -92,7 +92,7 @@ def update_outlet_data(phone_number):
         resp = coinsph.fetch_outlet_data(phone_number)
     except Exception as e:
         logger.exception(
-            "Someting wen't wrong while trying to fetch %s outlet data",
+            "Something went wrong while trying to fetch %s outlet data",
             phone_number)
         raise e
 
