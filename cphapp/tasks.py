@@ -22,6 +22,8 @@ from cphapp import utility
 from cphapp import exceptions
 from cphapp.test_assets import defines, json_file_path
 
+from fcm.tasks import send_confirmation
+
 logger = logging.getLogger(__name__)
 
 # IDs used in redis db 1
@@ -101,7 +103,8 @@ class UpdateOrderDataTask(Task):
         order_status = retval.get('delivery_status')
         update_payment_data.apply(
             kwargs={'order_id': retval.get('id'),
-                    'order_status': order_status})
+                    'order_status': order_status,
+                    'notify': True})
 
 
 @shared_task(
@@ -152,6 +155,9 @@ class UpdatePaymentTask(Task):
             logger.critical(s.errors)
         obj = s.update(obj, s.validated_data)
 
+        if kwargs.get('notify'):
+            send_confirmation.apply_async(kwargs={'order_id': order_id})
+
         # Clear result from result backend
         logger.info('Clearing task %s result from result backend.',
                     self.request.id)
@@ -164,7 +170,7 @@ class UpdatePaymentTask(Task):
     autoretry_for=(Exception,),
     retry_backoff=True,
     retry_jitter=True)
-def update_payment_data(self, order_id, order_status=None):
+def update_payment_data(self, order_id, order_status=None, notify=False):
     try:
         response = fetch_crypto_payment(order_id)
     except ConnectionError as e:

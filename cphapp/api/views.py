@@ -75,6 +75,9 @@ class TransactionAPIViewset(viewsets.GenericViewSet,
             }
         }
 
+        if raw_data.get('product_code', False):
+            data['product_code'] = raw_data.get('product_code')
+
         transaction_id = data.get('external_transaction_id')
 
         if transaction_id in defines.TEST_ORDER_IDS:

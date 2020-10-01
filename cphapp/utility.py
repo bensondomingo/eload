@@ -79,11 +79,13 @@ def sync_order_db(order_type, count=None, offset=0, test=False):
             logger.error('Error while serializing %s with ID %s. %s.',
                          order_type, order.get('id'),
                          serializer.error_messages)
-            logger.error(serializer.initial_data)
+            logger.error(serializer.errors)
+            current_count -= 1
         else:
             serializer.create(serializer.validated_data)
+        offset += 1
 
-    offset = Order.objects.filter(transaction_type=order_type).count()
+    # offset = Order.objects.filter(transaction_type=order_type).count()
     sync_order_db(order_type, current_count, offset, test)
 
 

@@ -18,7 +18,7 @@ from django.urls import path, include, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 
-from landing.views import IndexTemplateView
+from landing.views import IndexTemplateView, TemplateView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -26,6 +26,11 @@ urlpatterns = [
     path('cphapp/', include('cphapp.urls')),
     path('accounts/', include('profiles.api.urls')),
     path('auth/', include('authentication.urls')),
+    path('fcm/', include('fcm.urls')),
+    path('firebase-messaging-sw.js', (TemplateView.as_view(
+        template_name="firebase-messaging-sw.js",
+        content_type='application/javascript', )),
+        name='firebase-messaging-sw.js'),
     re_path(r"^.*$", IndexTemplateView.as_view(), name='entry-point')
 ]
 
