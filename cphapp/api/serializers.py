@@ -70,6 +70,7 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
     network = serializers.SerializerMethodField()
     device_hash = serializers.CharField(
         source='device.device_hash', read_only=True)
+    account = serializers.CharField(write_only=True)
 
     class Meta:
         model = LoadTransaction
