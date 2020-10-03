@@ -78,6 +78,8 @@ def send_confirmation(order_id):
     tokens = [t.get('token') for t in token_qs.values('token')]
     data = {k: str(v) for k, v in data.items()}
     data['notification_type'] = 'NEW_TRANSACTION'
+    data['notification_status'] = 'SUCCESS' if data.get(
+        'status') == 'settled' else 'ERROR'
     messages = messaging.MulticastMessage(tokens, data=data, webpush=wp_config)
     logger.info('Sending notification to retailer %s ...',
                 retailer.user.username)
