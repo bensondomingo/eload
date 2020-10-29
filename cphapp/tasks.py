@@ -1,6 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 import json
 import logging
+from time import sleep as delay
 from requests.exceptions import ConnectionError
 
 from django.contrib.auth import get_user_model
@@ -36,6 +37,10 @@ USER_MODEL = get_user_model()
 class RequestNewOrderTask(Task):
 
     max_retries = None
+    autoretry_for = (ConnectionError,)
+    retry_backoff = True
+    retry_backoff_max = 20
+    retry_jitter = True
 
     def on_success(self, retval, task_id, args, kwargs):
         # Start update_order_data task
@@ -68,11 +73,7 @@ class RequestNewOrderTask(Task):
         return super().on_failure(exc, task_id, args, kwargs, einfo)
 
 
-@shared_task(
-    bind=True, base=RequestNewOrderTask,
-    autoretry_for=(ConnectionError,),
-    retry_backoff=True,
-    retry_jitter=True)
+@shared_task(bind=True, base=RequestNewOrderTask)
 def request_new_order(self, transaction_id, data):
     """
     Fire a new POST request to 3rd party endpoint initiating buy of load.
@@ -95,6 +96,10 @@ def request_new_order(self, transaction_id, data):
 class UpdateOrderDataTask(Task):
 
     max_retries = None
+    autoretry_for = (Exception,)
+    retry_backoff = True
+    retry_backoff_max = 60
+    retry_jitter = True
 
     def on_success(self, retval, task_id, args, kwargs):
         # retval['model_id'] = kwargs.get('id')
@@ -107,11 +112,7 @@ class UpdateOrderDataTask(Task):
                     'notify': True})
 
 
-@shared_task(
-    bind=True, base=UpdateOrderDataTask,
-    autoretry_for=(Exception, ),
-    retry_backoff=True,
-    retry_jitter=True)
+@shared_task(bind=True, base=UpdateOrderDataTask)
 def update_order_data(self, id):
     if id in defines.TEST_ORDER_IDS:
         logger.info('update_order_data in TEST mode, using %s',
@@ -136,6 +137,10 @@ def update_order_data(self, id):
 class UpdatePaymentTask(Task):
 
     max_retries = None
+    autoretry_for = (Exception,)
+    retry_backoff = True
+    retry_backoff_max = 60
+    retry_jitter = True
 
     def on_success(self, retval, task_id, args, kwargs):
         order_id = kwargs.get('order_id')
@@ -165,11 +170,7 @@ class UpdatePaymentTask(Task):
         logger.info('Task %s succeeded', self.request.id)
 
 
-@shared_task(
-    bind=True, base=UpdatePaymentTask,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_jitter=True)
+@shared_task(bind=True, base=UpdatePaymentTask)
 def update_payment_data(self, order_id, order_status=None, notify=False):
     try:
         response = fetch_crypto_payment(order_id)
@@ -242,3 +243,17 @@ def check_pending_orders():
         logger.info('Enabling sync_order_db task')
         periodic_sync_db.save()
         sync_order_db.delay()
+
+
+class TestTask(Task):
+    autoretry_for = (Exception,)
+    retry_backoff = 2
+    retry_backoff_max = 60
+    retry_jitter = True
+    max_retries = None
+
+
+@shared_task(bind=True, base=TestTask)
+def test_task(self):
+    delay(1)
+    raise Exception("Auto retry with random jitter should fire")

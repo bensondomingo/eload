@@ -1,12 +1,12 @@
 self.__precacheManifest = (self.__precacheManifest || []).concat([
   {
-    "url": "/static/bundle.d48e9c55422a7528b138.css"
+    "url": "/static/bundle.6751d45f1013c926aa0e.css"
   },
   {
-    "url": "/static/bundle.d48e9c55422a7528b138.js"
+    "url": "/static/bundle.6751d45f1013c926aa0e.js"
   },
   {
-    "url": "/static/dashboard.d48e9c55422a7528b138.css"
+    "url": "/static/dashboard.6751d45f1013c926aa0e.css"
   },
   {
     "revision": "31d47085569e772c0f57aa8ec8381a5c",
@@ -25,10 +25,10 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/static/fonts/materialdesignicons-webfont.f1997a8a.woff2"
   },
   {
-    "url": "/static/home.d48e9c55422a7528b138.css"
+    "url": "/static/home.6751d45f1013c926aa0e.css"
   },
   {
-    "revision": "6f378e6d4b9d4b5740db626a776ce802",
+    "revision": "7aaa95a38f685219e34ba05a634414ea",
     "url": "/static/index.html"
   },
   {
@@ -52,7 +52,7 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/static/js/profile.772b602b.js"
   },
   {
-    "url": "/static/login.d48e9c55422a7528b138.css"
+    "url": "/static/login.6751d45f1013c926aa0e.css"
   },
   {
     "revision": "b05f3213f92c4eb17551bdb233c11164",
