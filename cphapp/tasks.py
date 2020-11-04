@@ -34,13 +34,28 @@ TASK_ID_PENDING_ORDERS = 'task.id.pending.orders'
 USER_MODEL = get_user_model()
 
 
+@shared_task(ignore_result=True)
+def persist_order(self, order_data):
+    logger.info('Persisting order %s', order_data)
+    serializer = LoadTransactionSerializer(data=order_data)
+    if not serializer.is_valid():
+        logger.error(serializer.errors)
+        # TODO: send notification alert to the retailer/admin
+        raise ValidationError(serializer.error_messages)
+    serializer.save()
+
+    # wait till order settled then update data on database
+    transaction_id = order_data.get('transaction_id')
+    update_order_data.apply(kwargs={'id': transaction_id})
+
+
 class RequestNewOrderTask(Task):
 
-    max_retries = None
-    autoretry_for = (ConnectionError,)
-    retry_backoff = True
-    retry_backoff_max = 20
-    retry_jitter = True
+    # max_retries = None
+    # autoretry_for = (ConnectionError,)
+    # retry_backoff = True
+    # retry_backoff_max = 20
+    # retry_jitter = True
 
     def on_success(self, retval, task_id, args, kwargs):
         # Start update_order_data task
@@ -58,23 +73,26 @@ class RequestNewOrderTask(Task):
         logger.info('Load order %s successfully created', transaction_id)
         logger.info('Running update_order_data task ...')
         AsyncResult(task_id).forget()
-        update_order_data.apply(kwargs={'id': transaction_id})
-
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
-        transaction_id = kwargs.get('transaction_id')
-        if isinstance(exc, exceptions.RequestNewOrderError):
-            error = ', '.join(exc.errors)
+        if kwargs.get('sync', False):
+            update_order_data.apply(kwargs={'id': transaction_id})
         else:
-            error = exc.__str__()
-        logger.error('An error occurred %s: %s', transaction_id, error)
-        obj = LoadTransaction.objects.get(id=transaction_id)
-        obj.error = error
-        obj.save()
-        return super().on_failure(exc, task_id, args, kwargs, einfo)
+            update_order_data.apply_async(kwargs={'id': transaction_id})
+
+    # def on_failure(self, exc, task_id, args, kwargs, einfo):
+    #     transaction_id = kwargs.get('transaction_id')
+    #     if isinstance(exc, exceptions.RequestNewOrderError):
+    #         error = ', '.join(exc.errors)
+    #     else:
+    #         error = exc.__str__()
+    #     logger.error('An error occurred %s: %s', transaction_id, error)
+    #     obj = LoadTransaction.objects.get(id=transaction_id)
+    #     obj.error = error
+    #     obj.save()
+    #     return super().on_failure(exc, task_id, args, kwargs, einfo)
 
 
 @shared_task(bind=True, base=RequestNewOrderTask)
-def request_new_order(self, transaction_id, data):
+def request_new_order(self, transaction_id, data, sync=True):
     """
     Fire a new POST request to 3rd party endpoint initiating buy of load.
     """
@@ -90,14 +108,18 @@ def request_new_order(self, transaction_id, data):
         if resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
             raise exceptions.RequestNewOrderError(data, resp.json())
         resp = resp.json()
+        if resp.status_code == status.HTTP_400_BAD_REQUEST \
+                and resp.get('errors') is not None:
+            raise exceptions.ServiceTemporaryUnavailableError()
+
     return resp.get('order')
 
 
 class UpdateOrderDataTask(Task):
 
     max_retries = None
-    autoretry_for = (Exception,)
-    retry_backoff = True
+    autoretry_for = (exceptions.OrderStatusError,)
+    retry_backoff = 2
     retry_backoff_max = 60
     retry_jitter = True
 
@@ -128,7 +150,7 @@ def update_order_data(self, id):
     order_status = order.get('delivery_status')
     if order_status not in ['settled', 'refunded', 'expired']:
         e = exceptions.OrderStatusError(order_status, id)
-        logger.error(e.__str__())
+        logger.info(e.__str__())
         raise e
     logger.info('Order %s status already finalized.', id)
     return order
@@ -252,8 +274,11 @@ class TestTask(Task):
     retry_jitter = True
     max_retries = None
 
+    def on_success(self, retval, task_id, args, kwargs):
+        logger.info(retval)
+
 
 @shared_task(bind=True, base=TestTask)
 def test_task(self):
-    delay(1)
-    raise Exception("Auto retry with random jitter should fire")
+    delay(5)
+    return {'test': 'OK'}

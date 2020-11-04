@@ -32,6 +32,15 @@ class RequestNewOrderError(Exception):
             ', '.join(self.errors), self.data)
 
 
+class ServiceTemporaryUnavailableError(Exception):
+    def __init__(self, data) -> None:
+        self.status = data.get('status')
+
+    def __str__(self) -> str:
+        return ('This partner service is temporarily unavailable. '
+                'Please try again in a little while.')
+
+
 class OrderStatusError(Exception):
 
     def __init__(self, status, eti, *args, **kwargs):

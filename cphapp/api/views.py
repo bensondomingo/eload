@@ -14,9 +14,10 @@ from cphapp.models import LoadOutlet, LoadTransaction
 from cphapp.api.serializers import (
     LoadOutletSerializer, LoadTransactionSerializer)
 from cphapp.filters import TransactionsFilter
-from cphapp.tasks import request_new_order as rno
+from cphapp.tasks import persist_order
 from cphapp.utility import update_outlet_data
-from cphapp.test_assets import defines
+
+from cph.coinsph import request_new_order
 
 
 class TransactionAPIViewset(viewsets.GenericViewSet,
@@ -78,16 +79,23 @@ class TransactionAPIViewset(viewsets.GenericViewSet,
         if raw_data.get('product_code', False):
             data['product_code'] = raw_data.get('product_code')
 
-        transaction_id = data.get('external_transaction_id')
+        resp = request_new_order(data)
+        resp_data = resp.json()
 
-        if transaction_id in defines.TEST_ORDER_IDS:
-            rno.apply(
-                kwargs={'transaction_id': transaction_id, 'data': data})
+        if resp.status_code == status.HTTP_200_OK \
+                or resp.status_code == status.HTTP_201_CREATED:
+            resp_data.update({
+                'transaction_id': data.get('external_transaction_id'),
+                'transaction_type': 'sellorder'})
+            persist_order.apply_async(kwargs={'order_data': resp_data})
+            return Response(data=data, status=status.HTTP_201_CREATED)
+
+        elif resp.status_code == status.HTTP_400_BAD_REQUEST \
+                and resp_data.get('errors') is not None:
+            return Response(data=resp_data,
+                            status=status.HTTP_400_BAD_REQUEST)
         else:
-            rno.apply_async(
-                kwargs={'transaction_id': transaction_id, 'data': data})
-
-        return Response(data=data, status=status.HTTP_201_CREATED)
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ProductAPIView(APIView):

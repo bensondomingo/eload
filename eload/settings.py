@@ -169,7 +169,7 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'systemlogs.log'),
             'formatter': 'verbose',
-            'level': 'WARNING'
+            'level': 'INFO'
         },
         'celery.console': {
             'class': 'logging.StreamHandler',
