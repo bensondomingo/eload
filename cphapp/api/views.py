@@ -1,3 +1,4 @@
+import logging
 from uuid import uuid4
 
 from django.db.models import Q
@@ -14,10 +15,12 @@ from cphapp.models import LoadOutlet, LoadTransaction
 from cphapp.api.serializers import (
     LoadOutletSerializer, LoadTransactionSerializer)
 from cphapp.filters import TransactionsFilter
-from cphapp.tasks import persist_order
+from cphapp.tasks import update_order_data
 from cphapp.utility import update_outlet_data
 
 from cph.coinsph import request_new_order
+
+logger = logging.getLogger(__name__)
 
 
 class TransactionAPIViewset(viewsets.GenericViewSet,
@@ -81,21 +84,35 @@ class TransactionAPIViewset(viewsets.GenericViewSet,
 
         resp = request_new_order(data)
         resp_data = resp.json()
+        order_data = resp_data.get('order')
 
-        if resp.status_code == status.HTTP_200_OK \
-                or resp.status_code == status.HTTP_201_CREATED:
-            resp_data.update({
-                'transaction_id': data.get('external_transaction_id'),
+        if resp_data.get('success'):
+            transaction_id = data.get('external_transaction_id')
+            order_data.update({
+                'transaction_id': transaction_id,
                 'transaction_type': 'sellorder'})
-            persist_order.apply_async(kwargs={'order_data': resp_data})
-            return Response(data=data, status=status.HTTP_201_CREATED)
 
-        elif resp.status_code == status.HTTP_400_BAD_REQUEST \
-                and resp_data.get('errors') is not None:
-            return Response(data=resp_data,
-                            status=status.HTTP_400_BAD_REQUEST)
+            serializer = LoadTransactionSerializer(data=order_data)
+            if not serializer.is_valid():
+                """
+                Can't think of a scenario that this would fail, unless the
+                serialization mapping was changed.
+                """
+                logger.error(serializer.errors)
+                # TODO: Cache data and errors to redis
+                # TODO: send notification alert to admin
+                raise serializers.ValidationError(serializer.error_messages)
+            serializer.save()
+            update_order_data.apply_async(kwargs={'id': transaction_id})
+            return Response(data=resp_data, status=status.HTTP_201_CREATED)
+
         else:
-            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            if resp_data.get('status') == status.HTTP_400_BAD_REQUEST \
+                    and resp_data.get('errors') is not None:
+                return Response(data=resp_data,
+                                status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ProductAPIView(APIView):

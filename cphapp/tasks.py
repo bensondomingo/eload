@@ -6,13 +6,11 @@ from requests.exceptions import ConnectionError
 
 from django.contrib.auth import get_user_model
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
 
 from cphapp.models import LoadTransaction
 from cphapp.api.serializers import LoadTransactionSerializer
 from cphapp import redis
-from cph.coinsph import (
-    fetch_crypto_payment, fetch_orders, request_new_order as rno)
+from cph.coinsph import fetch_crypto_payment, fetch_orders
 
 from celery import shared_task
 from celery.result import AsyncResult
@@ -34,87 +32,6 @@ TASK_ID_PENDING_ORDERS = 'task.id.pending.orders'
 USER_MODEL = get_user_model()
 
 
-@shared_task(ignore_result=True)
-def persist_order(self, order_data):
-    logger.info('Persisting order %s', order_data)
-    serializer = LoadTransactionSerializer(data=order_data)
-    if not serializer.is_valid():
-        logger.error(serializer.errors)
-        # TODO: send notification alert to the retailer/admin
-        raise ValidationError(serializer.error_messages)
-    serializer.save()
-
-    # wait till order settled then update data on database
-    transaction_id = order_data.get('transaction_id')
-    update_order_data.apply(kwargs={'id': transaction_id})
-
-
-class RequestNewOrderTask(Task):
-
-    # max_retries = None
-    # autoretry_for = (ConnectionError,)
-    # retry_backoff = True
-    # retry_backoff_max = 20
-    # retry_jitter = True
-
-    def on_success(self, retval, task_id, args, kwargs):
-        # Start update_order_data task
-        transaction_id = kwargs.get('transaction_id')
-        retval.update({
-            'transaction_id': transaction_id,
-            'transaction_type': 'sellorder'})
-
-        s = LoadTransactionSerializer(data=retval)
-        if not s.is_valid():
-            logger.error(s.errors)
-            raise ValidationError(s.error_messages)
-        s.save()
-
-        logger.info('Load order %s successfully created', transaction_id)
-        logger.info('Running update_order_data task ...')
-        AsyncResult(task_id).forget()
-        if kwargs.get('sync', False):
-            update_order_data.apply(kwargs={'id': transaction_id})
-        else:
-            update_order_data.apply_async(kwargs={'id': transaction_id})
-
-    # def on_failure(self, exc, task_id, args, kwargs, einfo):
-    #     transaction_id = kwargs.get('transaction_id')
-    #     if isinstance(exc, exceptions.RequestNewOrderError):
-    #         error = ', '.join(exc.errors)
-    #     else:
-    #         error = exc.__str__()
-    #     logger.error('An error occurred %s: %s', transaction_id, error)
-    #     obj = LoadTransaction.objects.get(id=transaction_id)
-    #     obj.error = error
-    #     obj.save()
-    #     return super().on_failure(exc, task_id, args, kwargs, einfo)
-
-
-@shared_task(bind=True, base=RequestNewOrderTask)
-def request_new_order(self, transaction_id, data, sync=True):
-    """
-    Fire a new POST request to 3rd party endpoint initiating buy of load.
-    """
-    if transaction_id in defines.TEST_ORDER_IDS:
-        logger.info('request_new_order in TEST mode, using %s',
-                    json_file_path.POST_REQUEST_RESP_JSON)
-        with open(json_file_path.POST_REQUEST_RESP_JSON, 'r') as f:
-            resp = json.load(f)
-    else:
-        logger.info(
-            'request_new_order in PROD mode, request new order %s', data)
-        resp = rno(data)
-        if resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
-            raise exceptions.RequestNewOrderError(data, resp.json())
-        resp = resp.json()
-        if resp.status_code == status.HTTP_400_BAD_REQUEST \
-                and resp.get('errors') is not None:
-            raise exceptions.ServiceTemporaryUnavailableError()
-
-    return resp.get('order')
-
-
 class UpdateOrderDataTask(Task):
 
     max_retries = None
@@ -124,7 +41,6 @@ class UpdateOrderDataTask(Task):
     retry_jitter = True
 
     def on_success(self, retval, task_id, args, kwargs):
-        # retval['model_id'] = kwargs.get('id')
         AsyncResult(id=task_id).forget()
 
         order_status = retval.get('delivery_status')
