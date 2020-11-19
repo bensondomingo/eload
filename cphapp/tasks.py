@@ -1,17 +1,16 @@
 from __future__ import absolute_import, unicode_literals
 import json
 import logging
+from time import sleep as delay
 from requests.exceptions import ConnectionError
 
 from django.contrib.auth import get_user_model
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
 
 from cphapp.models import LoadTransaction
 from cphapp.api.serializers import LoadTransactionSerializer
 from cphapp import redis
-from cph.coinsph import (
-    fetch_crypto_payment, fetch_orders, request_new_order as rno)
+from cph.coinsph import fetch_crypto_payment, fetch_orders
 
 from celery import shared_task
 from celery.result import AsyncResult
@@ -22,6 +21,8 @@ from cphapp import utility
 from cphapp import exceptions
 from cphapp.test_assets import defines, json_file_path
 
+from fcm.tasks import send_confirmation
+
 logger = logging.getLogger(__name__)
 
 # IDs used in redis db 1
@@ -31,84 +32,25 @@ TASK_ID_PENDING_ORDERS = 'task.id.pending.orders'
 USER_MODEL = get_user_model()
 
 
-class RequestNewOrderTask(Task):
-
-    max_retries = None
-
-    def on_success(self, retval, task_id, args, kwargs):
-        # Start update_order_data task
-        transaction_id = kwargs.get('transaction_id')
-        retval.update({
-            'transaction_id': transaction_id,
-            'transaction_type': 'sellorder'})
-
-        s = LoadTransactionSerializer(data=retval)
-        if not s.is_valid():
-            logger.error(s.errors)
-            raise ValidationError(s.error_messages)
-        s.save()
-
-        logger.info('Load order %s successfully created', transaction_id)
-        logger.info('Running update_order_data task ...')
-        AsyncResult(task_id).forget()
-        update_order_data.apply(kwargs={'id': transaction_id})
-
-    def on_failure(self, exc, task_id, args, kwargs, einfo):
-        transaction_id = kwargs.get('transaction_id')
-        if isinstance(exc, exceptions.RequestNewOrderError):
-            error = ', '.join(exc.errors)
-        else:
-            error = exc.__str__()
-        logger.error('An error occurred %s: %s', transaction_id, error)
-        obj = LoadTransaction.objects.get(id=transaction_id)
-        obj.error = error
-        obj.save()
-        return super().on_failure(exc, task_id, args, kwargs, einfo)
-
-
-@shared_task(
-    bind=True, base=RequestNewOrderTask,
-    autoretry_for=(ConnectionError,),
-    retry_backoff=True,
-    retry_jitter=True)
-def request_new_order(self, transaction_id, data):
-    """
-    Fire a new POST request to 3rd party endpoint initiating buy of load.
-    """
-    if transaction_id in defines.TEST_ORDER_IDS:
-        logger.info('request_new_order in TEST mode, using %s',
-                    json_file_path.POST_REQUEST_RESP_JSON)
-        with open(json_file_path.POST_REQUEST_RESP_JSON, 'r') as f:
-            resp = json.load(f)
-    else:
-        logger.info(
-            'request_new_order in PROD mode, request new order %s', data)
-        resp = rno(data)
-        if resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
-            raise exceptions.RequestNewOrderError(data, resp.json())
-        resp = resp.json()
-    return resp.get('order')
-
-
 class UpdateOrderDataTask(Task):
 
     max_retries = None
+    autoretry_for = (exceptions.OrderStatusError,)
+    retry_backoff = 2
+    retry_backoff_max = 60
+    retry_jitter = True
 
     def on_success(self, retval, task_id, args, kwargs):
-        # retval['model_id'] = kwargs.get('id')
         AsyncResult(id=task_id).forget()
 
         order_status = retval.get('delivery_status')
         update_payment_data.apply(
             kwargs={'order_id': retval.get('id'),
-                    'order_status': order_status})
+                    'order_status': order_status,
+                    'notify': True})
 
 
-@shared_task(
-    bind=True, base=UpdateOrderDataTask,
-    autoretry_for=(Exception, ),
-    retry_backoff=True,
-    retry_jitter=True)
+@shared_task(bind=True, base=UpdateOrderDataTask)
 def update_order_data(self, id):
     if id in defines.TEST_ORDER_IDS:
         logger.info('update_order_data in TEST mode, using %s',
@@ -124,7 +66,7 @@ def update_order_data(self, id):
     order_status = order.get('delivery_status')
     if order_status not in ['settled', 'refunded', 'expired']:
         e = exceptions.OrderStatusError(order_status, id)
-        logger.error(e.__str__())
+        logger.info(e.__str__())
         raise e
     logger.info('Order %s status already finalized.', id)
     return order
@@ -133,6 +75,10 @@ def update_order_data(self, id):
 class UpdatePaymentTask(Task):
 
     max_retries = None
+    autoretry_for = (Exception,)
+    retry_backoff = True
+    retry_backoff_max = 60
+    retry_jitter = True
 
     def on_success(self, retval, task_id, args, kwargs):
         order_id = kwargs.get('order_id')
@@ -152,6 +98,9 @@ class UpdatePaymentTask(Task):
             logger.critical(s.errors)
         obj = s.update(obj, s.validated_data)
 
+        if kwargs.get('notify'):
+            send_confirmation.apply_async(kwargs={'order_id': order_id})
+
         # Clear result from result backend
         logger.info('Clearing task %s result from result backend.',
                     self.request.id)
@@ -159,12 +108,8 @@ class UpdatePaymentTask(Task):
         logger.info('Task %s succeeded', self.request.id)
 
 
-@shared_task(
-    bind=True, base=UpdatePaymentTask,
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_jitter=True)
-def update_payment_data(self, order_id, order_status=None):
+@shared_task(bind=True, base=UpdatePaymentTask)
+def update_payment_data(self, order_id, order_status=None, notify=False):
     try:
         response = fetch_crypto_payment(order_id)
     except ConnectionError as e:
@@ -236,3 +181,20 @@ def check_pending_orders():
         logger.info('Enabling sync_order_db task')
         periodic_sync_db.save()
         sync_order_db.delay()
+
+
+class TestTask(Task):
+    autoretry_for = (Exception,)
+    retry_backoff = 2
+    retry_backoff_max = 60
+    retry_jitter = True
+    max_retries = None
+
+    def on_success(self, retval, task_id, args, kwargs):
+        logger.info(retval)
+
+
+@shared_task(bind=True, base=TestTask)
+def test_task(self):
+    delay(5)
+    return {'test': 'OK'}

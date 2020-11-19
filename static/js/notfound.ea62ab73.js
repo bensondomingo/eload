@@ -1,2 +1,0 @@
-(window["webpackJsonp"]=window["webpackJsonp"]||[]).push([["notfound"],{"7dac":function(n,o,t){"use strict";t.r(o);var e=function(){var n=this,o=n.$createElement,t=n._self._c||o;return t("div",[n._v("Error not found!")])},u=[],r={name:"NotFound"},a=r,c=t("2877"),l=Object(c["a"])(a,e,u,!1,null,null,null);o["default"]=l.exports}}]);
-//# sourceMappingURL=notfound.ea62ab73.js.map

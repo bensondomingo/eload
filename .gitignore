@@ -198,3 +198,6 @@ cphapp/test_assets
 redis/
 
 eload/deployment_settings.py
+eload/api_keys.py
+eload/loadninja-v0704-firebase-adminsdk-i1wbd-e226cc101e.json
+static/firebase-messaging-sw.js

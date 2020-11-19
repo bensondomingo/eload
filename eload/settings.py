@@ -47,6 +47,7 @@ INSTALLED_APPS = [
 
     'cphapp.apps.CphappConfig',
     'profiles.apps.ProfilesConfig',
+    'fcm.apps.FcmConfig',
     'webpack_loader',
 ]
 
@@ -66,6 +67,7 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [
+            os.path.join(BASE_DIR, 'static'),
             os.path.join(BASE_DIR, 'templates')
         ],
         'APP_DIRS': True,
@@ -167,7 +169,7 @@ LOGGING = {
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'systemlogs.log'),
             'formatter': 'verbose',
-            'level': 'WARNING'
+            'level': 'INFO'
         },
         'celery.console': {
             'class': 'logging.StreamHandler',
@@ -222,6 +224,12 @@ except ImportError:
 
 LOADNINJA_REWARD_TH = {
     'limit': 2e3, 'reward_factor': 0.1, 'reward_factor_onwards': 0.05}
+
+# Try to import api keys if present
+try:
+    from eload.api_keys import *
+except ImportError:
+    pass
 
 # import production settings
 if not DEBUG:
