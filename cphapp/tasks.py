@@ -36,8 +36,8 @@ class UpdateOrderDataTask(Task):
 
     max_retries = None
     autoretry_for = (exceptions.OrderStatusError,)
-    retry_backoff = 2
-    retry_backoff_max = 60
+    retry_backoff = 1
+    retry_backoff_max = 6 * 60  # 6 mins
     retry_jitter = True
 
     def on_success(self, retval, task_id, args, kwargs):
