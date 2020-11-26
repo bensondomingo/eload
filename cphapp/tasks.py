@@ -44,10 +44,24 @@ class UpdateOrderDataTask(Task):
         AsyncResult(id=task_id).forget()
 
         order_status = retval.get('delivery_status')
-        update_payment_data.apply(
-            kwargs={'order_id': retval.get('id'),
-                    'order_status': order_status,
-                    'notify': True})
+        if order_status == 'expired':
+            obj = LoadTransaction.objects.get(id=kwargs.get('id'))
+            data = {
+                'status': order_status,
+                'posted_amount': 0
+            }
+            s = LoadTransactionSerializer(obj, data, partial=True)
+            if not s.is_valid():
+                logger.critical(s.errors)
+            obj = s.update(obj, s.validated_data)
+            send_confirmation.apply_async(kwargs={'order_id': obj.id})
+            AsyncResult(task_id).forget()
+
+        else:
+            update_payment_data.apply(
+                kwargs={'order_id': retval.get('id'),
+                        'order_status': order_status,
+                        'notify': True})
 
 
 @shared_task(bind=True, base=UpdateOrderDataTask)
@@ -68,7 +82,7 @@ def update_order_data(self, id):
         e = exceptions.OrderStatusError(order_status, id)
         logger.info(e.__str__())
         raise e
-    logger.info('Order %s status already finalized.', id)
+    logger.info('Order %s status finalized to %s.', id, order_status)
     return order
 
 
