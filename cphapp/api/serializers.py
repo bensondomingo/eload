@@ -123,6 +123,9 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
                 return retailer.id
 
         # Use user_agent.device to determine the retailer
+        if data.get('user_agent') is None:
+            # Edge case for orders without user_agents
+            return None
         device_hash = data.get('user_agent').get('device_hash')
         try:
             device = Device.objects.get(device_hash=device_hash)
@@ -134,7 +137,7 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
     @staticmethod
     def order_to_transactions_map(data):
         parsed = {
-            'id': data.get('transaction_id', uuid4().hex),
+            'id': data.get('transaction_id') or uuid4().hex,
             'order_id': data.get('id'),
             'outlet_id': data.get('payment_outlet_id'),
             'confirmation_code': data.get('confirmation_code'),
@@ -149,7 +152,7 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
             'balance': data.get('running_balance'),
             'posted_amount': data.get('posted_amount'),
             'device': LoadTransactionSerializer.get_user_agent(
-                data.get('user_agent')).id
+                data.get('user_agent')).id if data.get('user_agent') else None
         }
         if data.get('transaction_type') == 'sellorder':
             parsed.update({
