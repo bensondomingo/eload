@@ -46,17 +46,11 @@ class UpdateOrderDataTask(Task):
         order_status = retval.get('delivery_status')
         if order_status == 'expired':
             obj = LoadTransaction.objects.get(id=kwargs.get('id'))
-            data = {
-                'status': order_status,
-                'posted_amount': 0
-            }
-            s = LoadTransactionSerializer(obj, data, partial=True)
-            if not s.is_valid():
-                logger.critical(s.errors)
-            obj = s.update(obj, s.validated_data)
-            send_confirmation.apply_async(kwargs={'order_id': obj.id})
+            obj.status = order_status
+            obj.posted_amount = 0
+            obj.save()
+            send_confirmation.apply_async(kwargs={'order_id': obj.order_id})
             AsyncResult(task_id).forget()
-
         else:
             update_payment_data.apply(
                 kwargs={'order_id': retval.get('id'),

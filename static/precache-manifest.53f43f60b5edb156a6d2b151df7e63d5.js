@@ -1,12 +1,12 @@
 self.__precacheManifest = (self.__precacheManifest || []).concat([
   {
-    "url": "/static/bundle.89c19aa850395b0c6909.css"
+    "url": "/static/bundle.85427961f9117f764cb5.css"
   },
   {
-    "url": "/static/bundle.89c19aa850395b0c6909.js"
+    "url": "/static/bundle.85427961f9117f764cb5.js"
   },
   {
-    "url": "/static/dashboard.89c19aa850395b0c6909.css"
+    "url": "/static/dashboard.85427961f9117f764cb5.css"
   },
   {
     "revision": "31d47085569e772c0f57aa8ec8381a5c",
@@ -25,10 +25,10 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/static/fonts/materialdesignicons-webfont.f1997a8a.woff2"
   },
   {
-    "url": "/static/home.89c19aa850395b0c6909.css"
+    "url": "/static/home.85427961f9117f764cb5.css"
   },
   {
-    "revision": "b61cbbb473935af55d17c03eefd2fe75",
+    "revision": "912e13972d07d5a1bbf049ddd4a8b98f",
     "url": "/static/index.html"
   },
   {
@@ -36,8 +36,8 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/static/js/dashboard.0361bf22.js"
   },
   {
-    "revision": "c3dff1bcaa8436963c00",
-    "url": "/static/js/home.74b7fed2.js"
+    "revision": "a97ed4e649f3f0e590be",
+    "url": "/static/js/home.20fc122b.js"
   },
   {
     "revision": "292b4419b7119220b405",
@@ -52,7 +52,7 @@ self.__precacheManifest = (self.__precacheManifest || []).concat([
     "url": "/static/js/profile.6336b213.js"
   },
   {
-    "url": "/static/login.89c19aa850395b0c6909.css"
+    "url": "/static/login.85427961f9117f764cb5.css"
   },
   {
     "revision": "b05f3213f92c4eb17551bdb233c11164",

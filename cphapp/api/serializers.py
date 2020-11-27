@@ -184,6 +184,9 @@ class LoadTransactionSerializer(serializers.ModelSerializer):
             # Skip amount validation during crypto-payment update
             return super().validate(attrs)
 
+        if attrs.get('order_status') == 'expired':
+            return super().validate(attrs)
+
         if 'confirmation_code' not in attrs:
             # Perform this validation only during retailer initiated buy
             amount = attrs.get('amount')
